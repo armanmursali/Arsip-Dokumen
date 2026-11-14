@@ -1388,14 +1388,35 @@ export function useArsipApp() {
 
   async function downloadFile(filePath: string, downloadName?: string | null) {
     const url = getFileUrl(filePath)
-    if (!url) return
-    const link = document.createElement('a')
-    link.href = url
-    link.download = downloadName || filePath.split('/').pop() || 'arsip-file'
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+    if (!url || typeof window === 'undefined') return
+    const fileName = (downloadName || filePath.split('/').pop() || 'arsip-file').trim()
+
+    await withActionLoading('Mengunduh file...', async () => {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const blob = await res.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = blobUrl
+        link.download = fileName
+        link.style.display = 'none'
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
+      } catch {
+        const sep = url.includes('?') ? '&' : '?'
+        const attachmentUrl = `${url}${sep}download=${encodeURIComponent(fileName)}`
+        const link = document.createElement('a')
+        link.href = attachmentUrl
+        link.download = fileName
+        link.style.display = 'none'
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }
+    })
   }
 
   // Users & Roles CRUD

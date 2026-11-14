@@ -46,7 +46,12 @@ onMounted(async () => {
       await app.loadPublicSettings()
       await app.init(true)
       if (app.currentUser.value && (route.path === '/' || route.path === '/login')) {
-        await router.replace('/dashboard')
+        const queryRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+        const savedRedirect = sessionStorage.getItem('digital_arsip_redirect_after_login') || ''
+        sessionStorage.removeItem('digital_arsip_redirect_after_login')
+        const candidate = queryRedirect || savedRedirect
+        const targetPath = candidate.startsWith('/dashboard') ? candidate : '/dashboard'
+        await router.replace(targetPath)
       } else if (app.oauthError.value && route.path === '/') {
         await router.replace('/login')
       }

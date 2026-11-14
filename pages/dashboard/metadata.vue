@@ -90,7 +90,6 @@
 </template>
 
 <script setup lang="ts">
-import * as XLSX from 'xlsx'
 import { getDocType } from '~/composables/useArsipApp'
 
 definePageMeta({
@@ -129,7 +128,9 @@ const filtered = computed(() => {
   })
 })
 
-function exportExcel() {
+async function exportExcel() {
+  if (!import.meta.client) return
+  const XLSX = await import('xlsx')
   const rows = filtered.value.map((a) => ({
     Judul: a.judul,
     Deskripsi: a.deskripsi || '',

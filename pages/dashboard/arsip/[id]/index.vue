@@ -359,8 +359,6 @@
 </template>
 
 <script setup lang="ts">
-import * as XLSX from 'xlsx'
-import QRCode from 'qrcode'
 import { computeBadgeStyle, getDocType } from '~/composables/useArsipApp'
 
 definePageMeta({
@@ -422,7 +420,7 @@ const pagedActivities = computed(() => {
 })
 
 async function loadPreview() {
-  if (!fileUrl.value) return
+  if (!import.meta.client || !fileUrl.value) return
   if (['txt', 'md'].includes(ext.value)) {
     try {
       const res = await fetch(fileUrl.value)
@@ -432,11 +430,14 @@ async function loadPreview() {
     }
   } else if (['xlsx', 'xls'].includes(ext.value) && fileSize.value <= 5 * 1024 * 1024) {
     try {
-      const res = await fetch(fileUrl.value)
-      const buf = await res.arrayBuffer()
-      const wb = XLSX.read(buf, { type: 'array' })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
-      excelHtml.value = XLSX.utils.sheet_to_html(sheet)
+      if (import.meta.client) {
+        const XLSX = await import('xlsx')
+        const res = await fetch(fileUrl.value)
+        const buf = await res.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array' })
+        const sheet = wb.Sheets[wb.SheetNames[0]]
+        excelHtml.value = XLSX.utils.sheet_to_html(sheet)
+      }
     } catch {
       excelHtml.value = '<p class="text-sm text-red-600">Gagal merender file Excel.</p>'
     }
@@ -459,9 +460,11 @@ async function handleDownloadMain() {
 }
 
 async function openShareModal() {
-  if (!record.value) return
+  if (!record.value || !import.meta.client) return
   await app.recordShare(record.value.id)
-  shareUrl.value = window.location.href
+  shareUrl.value = `${window.location.origin}/dashboard/arsip/${record.value.id}`
+  const qrMod = await import('qrcode')
+  const QRCode = qrMod.default || qrMod
   qrDataUrl.value = await QRCode.toDataURL(shareUrl.value, { width: 220, margin: 1 })
   copied.value = false
   shareModalOpen.value = true

@@ -3,7 +3,13 @@
   const app = useArsipApp()
   await app.init()
   if (!app.currentUser.value && to.path.startsWith('/dashboard')) {
-    return navigateTo('/login')
+    if (typeof window !== 'undefined' && to.fullPath !== '/dashboard') {
+      sessionStorage.setItem('digital_arsip_redirect_after_login', to.fullPath)
+    }
+    return navigateTo({
+      path: '/login',
+      query: to.fullPath !== '/dashboard' ? { redirect: to.fullPath } : undefined
+    })
   }
   if (app.currentUser.value && to.path.startsWith('/dashboard') && !app.canAccessPath(to.path)) {
     return navigateTo('/dashboard')

@@ -205,6 +205,7 @@
 
 <script setup lang="ts">
 const router = useRouter()
+const route = useRoute()
 const app = useArsipApp()
 const { currentUser, settings, companyLogoUrl, oauthError } = app
 
@@ -212,6 +213,17 @@ const email = ref('')
 const password = ref('')
 const errorMsg = ref('')
 const submitting = ref(false)
+
+function getPostLoginRedirectPath(): string {
+  const queryRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  const savedRedirect =
+    typeof window !== 'undefined' ? sessionStorage.getItem('digital_arsip_redirect_after_login') || '' : ''
+  const candidate = queryRedirect || savedRedirect
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem('digital_arsip_redirect_after_login')
+  }
+  return candidate.startsWith('/dashboard') ? candidate : '/dashboard'
+}
 
 function hasOAuthCallback(): boolean {
   if (typeof window === 'undefined') return false
@@ -221,11 +233,12 @@ function hasOAuthCallback(): boolean {
 }
 
 async function redirectToDashboardWithLoading() {
+  const targetPath = getPostLoginRedirectPath()
   await app.withActionLoading('Login berhasil, membuka Dashboard...', async () => {
-    await router.replace('/dashboard')
+    await router.replace(targetPath)
     await nextTick()
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) {
-      window.location.assign('/dashboard')
+      window.location.assign(targetPath)
     }
   })
 }
