@@ -58,7 +58,7 @@
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-primary-500 focus:outline-none"
             >
               <option disabled value="">Pilih Fungsi Arsip</option>
-              <option v-for="k in kategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
+              <option v-for="k in editableKategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
             </select>
           </div>
           <div>
@@ -132,7 +132,7 @@ definePageMeta({
 })
 
 const app = useArsipApp()
-const { kategoris, subjeks } = app
+const { kategoris, editableKategoris, subjeks } = app
 
 const todayDate = new Date().toISOString().slice(0, 10)
 const form = reactive({

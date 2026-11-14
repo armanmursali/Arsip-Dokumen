@@ -36,82 +36,50 @@
     </header>
 
     <!-- Hero Section -->
-    <section class="relative bg-white border-b border-slate-200/80">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-          <div class="lg:col-span-7 space-y-6">
-            <div class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-200">
-              <span class="h-2 w-2 rounded-full bg-sky-600"></span>
-              <span>{{ settings.name || 'Sistem Pengarsipan Digital Terpadu' }}</span>
-            </div>
+    <section class="relative overflow-hidden bg-slate-900 border-b border-slate-200/80">
+      <img
+        :src="heroImageUrl"
+        alt="Latar Belakang Hero"
+        class="absolute inset-0 h-full w-full object-cover object-center"
+      />
+      <!-- Dark shadow overlay -->
+      <div class="absolute inset-0 bg-slate-950/60 bg-gradient-to-r from-slate-950/85 via-slate-900/70 to-slate-900/45"></div>
 
-            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-[1.15]">
-              Pengelolaan Arsip Digital yang Terstruktur, Aman, dan Mudah Ditelusuri
-            </h1>
-
-            <p class="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl">
-              {{ settings.slogan || 'Simpan, klasifikasikan, pratinjau langsung di browser, dan lacak setiap perubahan dokumen instansi Anda dalam satu ruang kerja terpusat.' }}
-            </p>
-
-            <div class="flex flex-wrap items-center gap-3 pt-1">
-              <NuxtLink
-                :to="currentUser ? '/dashboard' : '/login'"
-                class="inline-flex items-center gap-2 rounded-lg bg-[#0B192C] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
-              >
-                <span>{{ currentUser ? 'Masuk ke Dashboard' : 'Mulai Sekarang' }}</span>
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </NuxtLink>
-              <a
-                href="#fitur"
-                class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                Lihat Kapabilitas
-              </a>
-            </div>
+      <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-32">
+        <div class="max-w-3xl space-y-6">
+          <div class="inline-flex items-center gap-2 rounded-md bg-white/10 border border-white/20 px-3 py-1 text-xs font-medium text-white">
+            <span class="h-1.5 w-1.5 rounded-full bg-sky-400"></span>
+            <span>{{ settings.name || 'Pusat Dokumentasi & Arsip Digital' }}</span>
           </div>
 
-          <!-- Architectural Capability Card -->
-          <div class="lg:col-span-5">
-            <div class="rounded-2xl bg-[#0B192C] text-white p-6 sm:p-7 shadow-xl border border-slate-800 space-y-5">
-              <div class="flex items-center justify-between border-b border-white/10 pb-4">
-                <div>
-                  <div class="text-xs font-semibold uppercase tracking-wider text-sky-400">Arsitektur Sistem</div>
-                  <div class="text-base font-bold text-white mt-0.5">Kapabilitas Utama</div>
-                </div>
-                <span class="rounded-md bg-white/10 px-2.5 py-1 text-[11px] font-medium text-slate-300">
-                  Supabase + Storage
-                </span>
-              </div>
+          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-[1.15]">
+            {{ heroConfig.title || 'Pengelolaan Arsip Digital yang Terstruktur, Aman, dan Mudah Ditelusuri' }}
+          </h1>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div class="rounded-xl bg-white/[0.05] border border-white/10 p-4">
-                  <div class="text-xs font-semibold text-sky-300">01. Klasifikasi 2-Tingkat</div>
-                  <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
-                    Organisasi Fungsi Arsip &amp; Subjek dengan badge warna yang jelas.
-                  </p>
-                </div>
-                <div class="rounded-xl bg-white/[0.05] border border-white/10 p-4">
-                  <div class="text-xs font-semibold text-sky-300">02. Pratinjau Multi-Format</div>
-                  <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
-                    Buka PDF, gambar, video, teks, hingga spreadsheet Excel langsung di browser.
-                  </p>
-                </div>
-                <div class="rounded-xl bg-white/[0.05] border border-white/10 p-4">
-                  <div class="text-xs font-semibold text-sky-300">03. Kamera ke PDF</div>
-                  <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
-                    Ambil beberapa foto dokumen fisik dan gabungkan otomatis menjadi PDF A4.
-                  </p>
-                </div>
-                <div class="rounded-xl bg-white/[0.05] border border-white/10 p-4">
-                  <div class="text-xs font-semibold text-sky-300">04. Audit Log &amp; Versi</div>
-                  <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
-                    Setiap pembaruan menyimpan versi lama, riwayat perubahan, dan Trash pemulihan.
-                  </p>
-                </div>
-              </div>
-            </div>
+          <p class="text-base sm:text-lg text-slate-200 leading-relaxed max-w-2xl">
+            {{
+              heroConfig.subtitle ||
+              settings.slogan ||
+              'Simpan, klasifikasikan, dan telusuri dokumen resmi instansi Anda secara cepat, rapi, dan aman.'
+            }}
+          </p>
+
+          <div class="flex flex-wrap items-center gap-3 pt-1">
+            <NuxtLink
+              :to="currentUser ? '/dashboard' : '/login'"
+              class="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-100 transition-colors"
+            >
+              <span>{{ currentUser ? 'Masuk ke Dashboard' : 'Mulai Sekarang' }}</span>
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </NuxtLink>
+            <a
+              href="#fitur"
+              class="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/20 transition-colors"
+            >
+              Pelajari Fitur
+            </a>
           </div>
         </div>
       </div>
@@ -121,7 +89,7 @@
     <section id="fitur" class="py-16 sm:py-20">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="max-w-2xl">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-sky-700">Fitur Sistem</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-sky-700">Keunggulan Utama</h2>
           <p class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
             Dirancang untuk Kepatuhan dan Kecepatan Akses Dokumen
           </p>
@@ -214,7 +182,7 @@
         <div>
           <div class="text-base font-bold text-white">Digital Arsip</div>
           <p class="text-xs text-slate-400 mt-1">
-            {{ settings.name || 'Sistem Pengelolaan Arsip Digital Terpadu' }}
+            {{ settings.name || 'Pusat Dokumentasi & Arsip Digital' }}
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-6 text-xs text-slate-400">
@@ -230,7 +198,7 @@
 
 <script setup lang="ts">
 const app = useArsipApp()
-const { currentUser, settings, companyLogoUrl } = app
+const { currentUser, settings, companyLogoUrl, heroConfig, heroImageUrl } = app
 
 onMounted(async () => {
   await app.init()

@@ -19,6 +19,16 @@
       Arsip tidak ditemukan.
     </div>
 
+    <div v-else-if="!app.canEditArsipRecord(currentRecord)" class="bg-white rounded-xl border border-gray-200 p-8 text-center space-y-3">
+      <p class="text-sm font-medium text-rose-600">Anda tidak memiliki izin untuk mengedit arsip pada kategori ini.</p>
+      <NuxtLink
+        to="/dashboard/arsip"
+        class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Kembali ke Daftar Arsip
+      </NuxtLink>
+    </div>
+
     <form v-else @submit.prevent="handleSubmit" class="space-y-6">
       <div v-if="errorMsg" class="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
         {{ errorMsg }}
@@ -56,7 +66,7 @@
               required
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-primary-500 focus:outline-none"
             >
-              <option v-for="k in kategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
+              <option v-for="k in editableKategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
             </select>
           </div>
           <div>
@@ -123,7 +133,7 @@ definePageMeta({
 
 const route = useRoute()
 const app = useArsipApp()
-const { arsips, kategoris, subjeks } = app
+const { arsips, kategoris, editableKategoris, subjeks } = app
 
 const currentRecord = computed(() => arsips.value.find((a) => a.id === Number(route.params.id)))
 

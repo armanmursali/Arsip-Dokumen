@@ -3,6 +3,8 @@
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
+    <ConfirmModal />
+    <ActionLoadingModal />
   </div>
 </template>
 

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
-    role TEXT NOT NULL DEFAULT 'super_admin',
+    role TEXT NOT NULL DEFAULT 'superadmin',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -87,15 +87,23 @@ CREATE TABLE IF NOT EXISTS public.pictures (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 8. Settings (Profil Perusahaan / Aplikasi)
+-- 8. Settings (Profil Perusahaan / Aplikasi & Hero)
 CREATE TABLE IF NOT EXISTS public.settings (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slogan TEXT,
     logo TEXT,
+    hero_title TEXT,
+    hero_subtitle TEXT,
+    hero_image TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Pastikan kolom Hero tersedia jika tabel settings sudah dibuat sebelumnya
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS hero_title TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS hero_subtitle TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS hero_image TEXT;
 
 -- 9. Activity Logs (Audit Trail ala spatie/laravel-activitylog)
 CREATE TABLE IF NOT EXISTS public.activity_logs (
@@ -161,10 +169,9 @@ BEGIN
         NEW.id,
         COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
         NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'role', 'operator')
+        COALESCE(NEW.raw_user_meta_data->>'role', 'viewer')
     )
     ON CONFLICT (email) DO UPDATE SET
-        id = EXCLUDED.id,
         name = EXCLUDED.name;
     RETURN NEW;
 END;
@@ -174,6 +181,9 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
+-- Auto-confirm existing unconfirmed auth.users if run in Supabase SQL Editor
+UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()) WHERE email_confirmed_at IS NULL;
 
 -- ============================================================================
 -- Row Level Security (RLS)
@@ -254,13 +264,18 @@ CREATE POLICY "Authenticated Delete Arsip & Settings"
 -- Seed Data (Persis seperti KategoriSeeder, SubjekSeeder, Roles & Settings)
 -- ============================================================================
 
--- Roles
+-- Roles (Standardized 3 roles: superadmin, writer, viewer; preserve user_acl/user_cred/app_config)
+DELETE FROM public.roles
+WHERE name NOT IN ('superadmin', 'writer', 'viewer')
+  AND name NOT LIKE 'user_acl:%'
+  AND name NOT LIKE 'user_cred:%'
+  AND name NOT LIKE 'app_config:%';
+
 INSERT INTO public.roles (name, permissions) VALUES
-    ('super_admin', '["view_any_arsip","view_arsip","create_arsip","update_arsip","delete_arsip","restore_arsip","force_delete_arsip","view_any_kategori","create_kategori","update_kategori","delete_kategori","view_any_subjek","create_subjek","update_subjek","delete_subjek","view_any_user","create_user","update_user","delete_user","view_any_role","create_role","update_role","delete_role","view_audit_trail","manage_settings"]'::jsonb),
-    ('admin', '["view_any_arsip","view_arsip","create_arsip","update_arsip","delete_arsip","restore_arsip","view_any_kategori","create_kategori","update_kategori","view_any_subjek","create_subjek","update_subjek","view_audit_trail"]'::jsonb),
-    ('operator', '["view_any_arsip","view_arsip","create_arsip","update_arsip","view_any_kategori","view_any_subjek"]'::jsonb),
+    ('superadmin', '["view_any_arsip","view_arsip","create_arsip","update_arsip","delete_arsip","restore_arsip","force_delete_arsip","view_any_kategori","create_kategori","update_kategori","delete_kategori","view_any_subjek","create_subjek","update_subjek","delete_subjek","view_any_user","create_user","update_user","delete_user","view_any_role","create_role","update_role","delete_role","view_audit_trail","manage_settings"]'::jsonb),
+    ('writer', '["view_any_arsip","view_arsip","create_arsip","update_arsip","delete_arsip","restore_arsip","force_delete_arsip","view_any_kategori","create_kategori","update_kategori","delete_kategori","view_any_subjek","create_subjek","update_subjek","delete_subjek"]'::jsonb),
     ('viewer', '["view_any_arsip","view_arsip","view_any_kategori","view_any_subjek"]'::jsonb)
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET permissions = EXCLUDED.permissions;
 
 -- Kategoris (Fungsi Arsip - KategoriSeeder.php)
 INSERT INTO public.kategoris (nama, color, deskripsi)

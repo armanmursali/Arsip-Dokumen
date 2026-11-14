@@ -38,14 +38,16 @@
               </td>
               <td class="px-4 py-3 text-gray-600">{{ log.causer_name || 'System' }}</td>
               <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ formatDateTime(log.created_at) }}</td>
-              <td class="px-4 py-3 text-right">
-                <button
-                  type="button"
-                  @click="selectedLog = log"
-                  class="text-xs font-semibold text-sky-600 hover:underline"
-                >
-                  Lihat Detail
-                </button>
+              <td class="px-4 py-3 text-right whitespace-nowrap w-14">
+                <RowActionMenu
+                  :items="[
+                    {
+                      label: 'Lihat Detail',
+                      onClick: () => { selectedLog = log },
+                      icon: 'view'
+                    }
+                  ]"
+                />
               </td>
             </tr>
             <tr v-if="filtered.length === 0">

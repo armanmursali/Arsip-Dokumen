@@ -50,5 +50,10 @@ export default defineNuxtConfig({
   },
   tailwindcss: {
     configPath: '~/tailwind.config.js'
+  },
+  vite: {
+    optimizeDeps: {
+      include: ['@supabase/supabase-js', 'chart.js', 'vue-chartjs', 'qrcode', 'xlsx', 'jspdf']
+    }
   }
 })

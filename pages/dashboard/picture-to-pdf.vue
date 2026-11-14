@@ -106,7 +106,7 @@
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-primary-500 focus:outline-none"
             >
               <option disabled value="">Pilih Fungsi</option>
-              <option v-for="k in kategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
+              <option v-for="k in editableKategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
             </select>
           </div>
 
@@ -203,8 +203,6 @@
 </template>
 
 <script setup lang="ts">
-import { jsPDF } from 'jspdf'
-
 definePageMeta({
   layout: 'admin',
   middleware: 'auth'
@@ -216,7 +214,7 @@ interface CapturedPhoto {
 }
 
 const app = useArsipApp()
-const { kategoris, subjeks } = app
+const { kategoris, editableKategoris, subjeks } = app
 
 const form = reactive({
   judul: '',
@@ -360,6 +358,7 @@ async function handleGenerateAndSave() {
   errorMsg.value = ''
   try {
     // A4 portrait in mm: 210 x 297
+    const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const pageW = 210
     const pageH = 297

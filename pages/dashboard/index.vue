@@ -12,7 +12,7 @@
           <div class="min-w-0">
             <div class="text-xs font-semibold uppercase tracking-wider text-sky-700">Instansi Pengelola</div>
             <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate mt-0.5">
-              {{ settings.name || 'Nama Perusahaan' }}
+              {{ settings.name || 'Nama Instansi' }}
             </h1>
             <p class="text-slate-500 text-xs sm:text-sm truncate mt-0.5">
               {{ settings.slogan || 'Sistem Manajemen Arsip Digital Terpadu' }}
@@ -21,24 +21,33 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
-          <NuxtLink
-            to="/dashboard/picture-to-pdf"
-            class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          <template v-if="canCreateArsip">
+            <NuxtLink
+              to="/dashboard/picture-to-pdf"
+              class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              </svg>
+              <span>Scan ke PDF</span>
+            </NuxtLink>
+            <NuxtLink
+              to="/dashboard/arsip/create"
+              class="inline-flex items-center gap-2 rounded-lg bg-[#0B192C] px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              <span>Buat Arsip</span>
+            </NuxtLink>
+          </template>
+          <span
+            v-else
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600"
           >
-            <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-            </svg>
-            <span>Scan ke PDF</span>
-          </NuxtLink>
-          <NuxtLink
-            to="/dashboard/arsip/create"
-            class="inline-flex items-center gap-2 rounded-lg bg-[#0B192C] px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span>Buat Arsip</span>
-          </NuxtLink>
+            <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+            Akses Lihat Saja — {{ formatRoleLabel(userRole) }}
+          </span>
         </div>
       </div>
     </div>
@@ -181,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { getDocType } from '~/composables/useArsipApp'
+import { formatRoleLabel, getDocType } from '~/composables/useArsipApp'
 
 definePageMeta({
   layout: 'admin',
@@ -189,7 +198,7 @@ definePageMeta({
 })
 
 const app = useArsipApp()
-const { activeArsips, kategoris, users, settings, companyLogoUrl } = app
+const { activeArsips, kategoris, visibleKategoris, users, settings, companyLogoUrl, canCreateArsip, userRole } = app
 
 onMounted(async () => {
   await app.init()
@@ -252,7 +261,7 @@ function buildSparklinePoints(series: number[]): string {
 
 const statCards = computed(() => {
   const arsipSeries = buildMonthlyCountSeries(activeArsips.value.map((a) => a.created_at))
-  const kategoriSeries = buildMonthlyCountSeries(kategoris.value.map((k) => k.created_at))
+  const kategoriSeries = buildMonthlyCountSeries(visibleKategoris.value.map((k) => k.created_at))
   const uploaderSeries = buildMonthlyDistinctUsersSeries()
 
   const aDelta = monthDelta(arsipSeries)
@@ -275,7 +284,7 @@ const statCards = computed(() => {
     },
     {
       title: 'Total Fungsi Arsip',
-      value: kategoris.value.length,
+      value: visibleKategoris.value.length,
       delta: kDelta.delta,
       up: kDelta.up,
       series: kategoriSeries,

@@ -71,6 +71,9 @@ export interface SettingRecord {
   name: string
   slogan: string | null
   logo: string | null
+  hero_title?: string | null
+  hero_subtitle?: string | null
+  hero_image?: string | null
   created_at: string
   updated_at: string
 }

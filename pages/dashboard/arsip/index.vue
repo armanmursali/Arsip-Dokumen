@@ -5,15 +5,15 @@
       <div>
         <div class="flex items-center gap-2.5">
           <h1 class="text-2xl font-bold tracking-tight text-slate-900">Arsip Dokumen</h1>
-          <span class="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-semibold text-slate-700 tabular-nums">
+          <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
             {{ filtered.length }}
           </span>
         </div>
         <p class="text-sm text-slate-500 mt-0.5">Kelola, filter, dan telusuri dokumen serta file arsip digital instansi.</p>
       </div>
-      <div class="flex items-center gap-2.5">
+      <div v-if="canDeleteArsip || canCreateArsip" class="flex items-center gap-2.5">
         <button
-          v-if="selectedIds.length > 0"
+          v-if="canDeleteArsip && selectedIds.length > 0"
           type="button"
           @click="handleBulkDelete"
           class="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 transition-colors"
@@ -21,6 +21,7 @@
           Hapus Terpilih ({{ selectedIds.length }})
         </button>
         <NuxtLink
+          v-if="canCreateArsip"
           to="/dashboard/arsip/create"
           class="inline-flex items-center gap-1.5 rounded-lg bg-[#0B192C] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
         >
@@ -34,8 +35,8 @@
 
     <!-- Filters & Search -->
     <div class="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-        <div class="lg:col-span-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+        <div class="sm:col-span-2 lg:col-span-5">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Cari Arsip</label>
           <div class="relative">
             <svg
@@ -55,17 +56,17 @@
             />
           </div>
         </div>
-        <div>
+        <div class="lg:col-span-4">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Fungsi Arsip</label>
           <select
             v-model="filterKategori"
             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white text-slate-800 focus:border-[#0B192C] focus:outline-none"
           >
             <option value="">Semua Fungsi</option>
-            <option v-for="k in kategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
+            <option v-for="k in visibleKategoris" :key="k.id" :value="k.id">{{ k.nama }}</option>
           </select>
         </div>
-        <div>
+        <div class="lg:col-span-3">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Subjek</label>
           <select
             v-model="filterSubjek"
@@ -75,19 +76,10 @@
             <option v-for="s in subjeks" :key="s.id" :value="s.id">{{ s.nama }}</option>
           </select>
         </div>
-        <div class="flex items-end">
-          <button
-            type="button"
-            @click="resetFilters"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            Reset Filter
-          </button>
-        </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
-        <div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 pt-3 border-t border-slate-100">
+        <div class="lg:col-span-3">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Dari Tanggal</label>
           <input
             v-model="dateFrom"
@@ -95,7 +87,7 @@
             class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-800 focus:border-[#0B192C] focus:outline-none"
           />
         </div>
-        <div>
+        <div class="lg:col-span-3">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Sampai Tanggal</label>
           <input
             v-model="dateUntil"
@@ -103,7 +95,7 @@
             class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-800 focus:border-[#0B192C] focus:outline-none"
           />
         </div>
-        <div>
+        <div class="lg:col-span-4">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Urutkan</label>
           <select
             v-model="sortKey"
@@ -115,6 +107,15 @@
             <option value="judul_desc">Nama (Z - A)</option>
           </select>
         </div>
+        <div class="lg:col-span-2 flex items-end">
+          <button
+            type="button"
+            @click="resetFilters"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Reset Filter
+          </button>
+        </div>
       </div>
     </div>
 
@@ -124,7 +125,7 @@
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="bg-slate-50/90">
             <tr>
-              <th class="px-4 py-3 text-left w-10">
+              <th v-if="canDeleteArsip" class="px-4 py-3 text-left w-10">
                 <input
                   type="checkbox"
                   :checked="allPageSelected"
@@ -133,107 +134,80 @@
                 />
               </th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Dokumen</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Format</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Fungsi</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Subjek</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Pengunggah</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Tanggal</th>
-              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Aksi</th>
+              <th class="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Format</th>
+              <th class="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Fungsi</th>
+              <th class="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider hidden md:table-cell">Subjek</th>
+              <th class="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider hidden xl:table-cell">Pengunggah</th>
+              <th class="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Tanggal</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider w-12">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
             <tr v-for="item in paginated" :key="item.id" class="hover:bg-slate-50/80 transition-colors">
-              <td class="px-4 py-3.5 align-top">
+              <td v-if="canDeleteArsip" class="px-4 py-3 align-middle w-10">
                 <input
                   v-model="selectedIds"
                   type="checkbox"
                   :value="item.id"
-                  class="mt-0.5 rounded border-slate-300 text-[#0B192C] focus:ring-sky-500"
+                  class="rounded border-slate-300 text-[#0B192C] focus:ring-sky-500"
                 />
               </td>
-              <td class="px-4 py-3.5 max-w-xs">
-                <NuxtLink :to="`/dashboard/arsip/${item.id}`" class="block group">
-                  <div class="font-semibold text-slate-900 group-hover:text-sky-700 truncate transition-colors" :title="item.judul">
-                    {{ item.judul }}
-                  </div>
-                  <div class="text-xs text-slate-500 truncate mt-0.5">
-                    {{ item.original_file_name || item.file_path }}
+              <td class="px-4 py-3">
+                <NuxtLink :to="`/dashboard/arsip/${item.id}`" class="flex items-center gap-3 group min-w-0 max-w-[190px] sm:max-w-[230px] xl:max-w-[260px]">
+                  <FileTypeIcon :type="getDocType(item)" :show-label="false" size="sm" />
+                  <div class="min-w-0 flex-1">
+                    <div class="font-semibold text-slate-900 group-hover:text-sky-700 truncate transition-colors" :title="item.judul">
+                      {{ item.judul }}
+                    </div>
+                    <div class="text-xs text-slate-500 truncate mt-0.5" :title="item.original_file_name || item.file_path">
+                      {{ item.original_file_name || item.file_path }}
+                    </div>
                   </div>
                 </NuxtLink>
               </td>
-              <td class="px-4 py-3.5 whitespace-nowrap">
-                <span
-                  :class="[
-                    getDocTypeBadgeClass(getDocType(item)),
-                    'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ring-1 ring-inset'
-                  ]"
-                >
-                  {{ getDocType(item) }}
-                </span>
+              <td class="px-3 py-3 whitespace-nowrap">
+                <FileTypeIcon :type="getDocType(item)" size="sm" />
               </td>
-              <td class="px-4 py-3.5 whitespace-nowrap">
+              <td class="px-3 py-3 whitespace-nowrap">
                 <span
                   v-if="app.getKategori(item.kategori_id)"
-                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
                   :style="computeBadgeStyle(app.getKategori(item.kategori_id)?.color)"
                 >
-                  {{ app.getKategori(item.kategori_id)?.nama }}
+                  <span
+                    class="h-1.5 w-1.5 rounded-full shrink-0"
+                    :style="{ backgroundColor: app.getKategori(item.kategori_id)?.color || '#64748b' }"
+                  />
+                  <span>{{ app.getKategori(item.kategori_id)?.nama }}</span>
                 </span>
                 <span v-else class="text-xs text-slate-400">-</span>
               </td>
-              <td class="px-4 py-3.5 whitespace-nowrap">
+              <td class="px-3 py-3 whitespace-nowrap hidden md:table-cell">
                 <span
                   v-if="app.getSubjek(item.subjek_id)"
-                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
                   :style="computeBadgeStyle(app.getSubjek(item.subjek_id)?.color)"
                 >
-                  {{ app.getSubjek(item.subjek_id)?.nama }}
+                  <span
+                    class="h-1.5 w-1.5 rounded-full shrink-0"
+                    :style="{ backgroundColor: app.getSubjek(item.subjek_id)?.color || '#64748b' }"
+                  />
+                  <span>{{ app.getSubjek(item.subjek_id)?.nama }}</span>
                 </span>
                 <span v-else class="text-xs text-slate-400">-</span>
               </td>
-              <td class="px-4 py-3.5 whitespace-nowrap text-slate-700">
+              <td class="px-3 py-3 whitespace-nowrap hidden xl:table-cell text-slate-600 text-xs">
                 {{ app.getUserName(item) }}
               </td>
-              <td class="px-4 py-3.5 whitespace-nowrap text-slate-600 tabular-nums">
+              <td class="px-3 py-3 whitespace-nowrap text-slate-500 text-xs tabular-nums">
                 {{ formatDate(item.created_at) }}
               </td>
-              <td class="px-4 py-3.5 whitespace-nowrap text-right">
-                <div class="inline-flex items-center gap-1">
-                  <NuxtLink
-                    :to="`/dashboard/arsip/${item.id}`"
-                    class="px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-50 rounded-md transition-colors"
-                    title="Lihat"
-                  >
-                    Lihat
-                  </NuxtLink>
-                  <button
-                    type="button"
-                    @click="handleDownload(item)"
-                    class="px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors"
-                    title="Unduh"
-                  >
-                    Unduh
-                  </button>
-                  <NuxtLink
-                    :to="`/dashboard/arsip/${item.id}/edit`"
-                    class="px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 rounded-md transition-colors"
-                    title="Edit"
-                  >
-                    Edit
-                  </NuxtLink>
-                  <button
-                    type="button"
-                    @click="handleDelete(item.id)"
-                    class="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                    title="Hapus"
-                  >
-                    Hapus
-                  </button>
-                </div>
+              <td class="px-4 py-3 whitespace-nowrap text-right w-12">
+                <RowActionMenu :items="rowActions(item)" />
               </td>
             </tr>
             <tr v-if="paginated.length === 0">
-              <td colspan="8" class="px-6 py-12 text-center text-sm text-slate-500">
+              <td :colspan="canDeleteArsip ? 8 : 7" class="px-6 py-12 text-center text-sm text-slate-500">
                 Tidak ada arsip yang sesuai dengan filter.
               </td>
             </tr>
@@ -272,7 +246,8 @@
 </template>
 
 <script setup lang="ts">
-import { computeBadgeStyle, getDocType, getDocTypeBadgeClass } from '~/composables/useArsipApp'
+import type { RowActionItem } from '~/components/RowActionMenu.vue'
+import { computeBadgeStyle, getDocType } from '~/composables/useArsipApp'
 import type { ArsipRecord } from '~/types/arsip'
 
 definePageMeta({
@@ -281,7 +256,7 @@ definePageMeta({
 })
 
 const app = useArsipApp()
-const { activeArsips, kategoris, subjeks } = app
+const { activeArsips, visibleKategoris, subjeks, canCreateArsip, canDeleteArsip } = app
 
 const search = ref('')
 const filterKategori = ref<string | number>('')
@@ -362,13 +337,25 @@ function resetFilters() {
 }
 
 async function handleDelete(id: number) {
-  if (!confirm('Pindahkan arsip ini ke Trash Arsip?')) return
+  const ok = await app.confirmDialog({
+    title: 'Pindahkan ke Trash?',
+    message: 'Arsip ini akan dipindahkan ke Trash Arsip. Anda masih dapat memulihkannya nanti.',
+    confirmText: 'Ya, Pindahkan',
+    variant: 'danger'
+  })
+  if (!ok) return
   await app.softDeleteArsip(id)
   selectedIds.value = selectedIds.value.filter((x) => x !== id)
 }
 
 async function handleBulkDelete() {
-  if (!confirm(`Pindahkan ${selectedIds.value.length} arsip terpilih ke Trash Arsip?`)) return
+  const ok = await app.confirmDialog({
+    title: 'Pindahkan Arsip Terpilih?',
+    message: `Pindahkan ${selectedIds.value.length} arsip terpilih ke Trash Arsip?`,
+    confirmText: 'Ya, Pindahkan Semua',
+    variant: 'danger'
+  })
+  if (!ok) return
   for (const id of [...selectedIds.value]) {
     await app.softDeleteArsip(id)
   }
@@ -378,6 +365,34 @@ async function handleBulkDelete() {
 async function handleDownload(item: ArsipRecord) {
   await app.recordDownload(item.id)
   await app.downloadFile(item.file_path, item.original_file_name)
+}
+
+function rowActions(item: ArsipRecord): RowActionItem[] {
+  return [
+    {
+      label: 'Lihat Detail',
+      to: `/dashboard/arsip/${item.id}`,
+      icon: 'view'
+    },
+    {
+      label: 'Unduh File',
+      onClick: () => handleDownload(item),
+      icon: 'download'
+    },
+    {
+      label: 'Edit Arsip',
+      to: `/dashboard/arsip/${item.id}/edit`,
+      icon: 'edit',
+      show: app.canEditArsipRecord(item)
+    },
+    {
+      label: 'Hapus ke Trash',
+      onClick: () => handleDelete(item.id),
+      icon: 'delete',
+      variant: 'danger',
+      show: app.canDeleteArsipRecord(item)
+    }
+  ]
 }
 
 function formatDate(iso: string): string {

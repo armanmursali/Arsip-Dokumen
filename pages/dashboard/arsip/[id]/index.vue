@@ -24,6 +24,7 @@
           <span>Unduh</span>
         </button>
         <NuxtLink
+          v-if="app.canEditArsipRecord(record)"
           :to="`/dashboard/arsip/${record.id}/edit`"
           class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
         >
@@ -33,7 +34,7 @@
     </div>
 
     <div v-if="!record" class="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
-      Arsip tidak ditemukan.
+      Arsip tidak ditemukan atau Anda tidak memiliki akses untuk melihat kategori arsip ini.
     </div>
 
     <div v-else class="p-6 bg-white rounded-xl border border-gray-200 shadow-sm space-y-6">
@@ -47,6 +48,7 @@
         </div>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
+          <FileTypeIcon :type="getDocType(record)" size="sm" />
           <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
             {{ record.download_count || 0 }} Unduhan
           </span>
@@ -55,17 +57,19 @@
           </span>
           <span
             v-if="kategori"
-            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+            class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium"
             :style="computeBadgeStyle(kategori.color)"
           >
-            {{ kategori.nama }}
+            <span class="h-1.5 w-1.5 rounded-full shrink-0" :style="{ backgroundColor: kategori.color }"></span>
+            <span>{{ kategori.nama }}</span>
           </span>
           <span
             v-if="subjek"
-            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+            class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium"
             :style="computeBadgeStyle(subjek.color)"
           >
-            {{ subjek.nama }}
+            <span class="h-1.5 w-1.5 rounded-full shrink-0" :style="{ backgroundColor: subjek.color }"></span>
+            <span>{{ subjek.nama }}</span>
           </span>
         </div>
 
@@ -83,10 +87,11 @@
             <dd class="mt-0.5">
               <span
                 v-if="kategori"
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium"
                 :style="computeBadgeStyle(kategori.color)"
               >
-                {{ kategori.nama }}
+                <span class="h-1.5 w-1.5 rounded-full shrink-0" :style="{ backgroundColor: kategori.color }"></span>
+                <span>{{ kategori.nama }}</span>
               </span>
               <span v-else class="text-gray-700">-</span>
             </dd>
@@ -96,17 +101,21 @@
             <dd class="mt-0.5">
               <span
                 v-if="subjek"
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium"
                 :style="computeBadgeStyle(subjek.color)"
               >
-                {{ subjek.nama }}
+                <span class="h-1.5 w-1.5 rounded-full shrink-0" :style="{ backgroundColor: subjek.color }"></span>
+                <span>{{ subjek.nama }}</span>
               </span>
               <span v-else class="text-gray-700">-</span>
             </dd>
           </div>
           <div>
             <dt class="text-xs font-medium text-gray-500">Nama File</dt>
-            <dd class="mt-0.5 text-gray-800 break-all">{{ record.original_file_name || record.file_path || '-' }}</dd>
+            <dd class="mt-1 flex items-center gap-2 text-gray-800 break-all">
+              <FileTypeIcon :type="getDocType(record)" size="sm" />
+              <span>{{ record.original_file_name || record.file_path || '-' }}</span>
+            </dd>
           </div>
           <div>
             <dt class="text-xs font-medium text-gray-500">Pengunggah</dt>
@@ -214,8 +223,13 @@
                     </span>
                   </td>
                   <td class="px-4 py-3">
-                    <div class="font-medium text-gray-900 truncate max-w-md">{{ v.judul }}</div>
-                    <div class="text-xs text-gray-500 truncate">{{ v.original_file_name || v.file_path }}</div>
+                    <div class="flex items-center gap-2.5">
+                      <FileTypeIcon :file-name="v.original_file_name || v.file_path" :show-label="false" size="sm" />
+                      <div class="min-w-0">
+                        <div class="font-medium text-gray-900 truncate max-w-md">{{ v.judul }}</div>
+                        <div class="text-xs text-gray-500 truncate">{{ v.original_file_name || v.file_path }}</div>
+                      </div>
+                    </div>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap text-gray-600">{{ app.getUserName(v) }}</td>
                   <td class="px-4 py-3 whitespace-nowrap text-gray-600">{{ formatDateTime(v.created_at) }}</td>
@@ -347,7 +361,7 @@
 <script setup lang="ts">
 import * as XLSX from 'xlsx'
 import QRCode from 'qrcode'
-import { computeBadgeStyle } from '~/composables/useArsipApp'
+import { computeBadgeStyle, getDocType } from '~/composables/useArsipApp'
 
 definePageMeta({
   layout: 'admin',
@@ -358,7 +372,14 @@ const route = useRoute()
 const app = useArsipApp()
 const { arsips, versions, activityLogs } = app
 
-const record = computed(() => arsips.value.find((a) => a.id === Number(route.params.id)))
+const record = computed(() => {
+  const found = arsips.value.find((a) => a.id === Number(route.params.id))
+  if (!found) return undefined
+  if (!app.hasPermission('view_any_arsip') || !app.canViewKategoriId(found.kategori_id)) {
+    return undefined
+  }
+  return found
+})
 const kategori = computed(() => app.getKategori(record.value?.kategori_id))
 const subjek = computed(() => app.getSubjek(record.value?.subjek_id))
 const fileUrl = computed(() => app.getFileUrl(record.value?.file_path))
@@ -454,7 +475,13 @@ async function copyShareUrl() {
       shareModalOpen.value = false
     }, 1000)
   } catch {
-    alert('Gagal menyalin tautan.')
+    await app.confirmDialog({
+      title: 'Gagal Menyalin Tautan',
+      message: 'Browser tidak mengizinkan penyalinan otomatis ke clipboard. Silakan salin tautan pada kolom secara manual.',
+      confirmText: 'Mengerti',
+      cancelText: '',
+      variant: 'warning'
+    })
   }
 }
 

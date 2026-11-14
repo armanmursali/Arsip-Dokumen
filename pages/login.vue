@@ -26,7 +26,7 @@
           </div>
           <div>
             <div class="text-base font-bold tracking-tight text-white">Digital Arsip</div>
-            <div class="text-xs text-slate-400">{{ settings.name || 'Sistem Pengelolaan Dokumen' }}</div>
+            <div class="text-xs text-slate-400">{{ settings.name || 'Pusat Dokumentasi & Arsip' }}</div>
           </div>
         </NuxtLink>
       </div>
@@ -126,35 +126,11 @@
         <div class="bg-white border border-slate-200/90 rounded-2xl shadow-sm p-6 sm:p-8 space-y-6">
           <div>
             <h2 class="text-xl font-bold tracking-tight text-slate-900">
-              {{ isRegister ? 'Buat Akun Pengguna' : 'Masuk ke Sistem' }}
+              Masuk ke Akun
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ isRegister ? 'Lengkapi data diri untuk mendaftarkan akses pengarsipan.' : 'Gunakan akun terdaftar untuk mengakses ruang kerja arsip.' }}
+              Gunakan akun yang telah didaftarkan oleh Super Admin untuk mengakses ruang kerja arsip.
             </p>
-          </div>
-
-          <!-- Segmented Tab Toggle -->
-          <div class="grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-sm font-medium">
-            <button
-              type="button"
-              @click="switchMode(false)"
-              :class="[
-                !isRegister ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900',
-                'py-1.5 rounded-md transition-all'
-              ]"
-            >
-              Masuk
-            </button>
-            <button
-              type="button"
-              @click="switchMode(true)"
-              :class="[
-                isRegister ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900',
-                'py-1.5 rounded-md transition-all'
-              ]"
-            >
-              Daftar Akun
-            </button>
           </div>
 
           <div v-if="errorMsg" class="rounded-lg bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700">
@@ -162,17 +138,6 @@
           </div>
 
           <form @submit.prevent="handleSubmit" class="space-y-4">
-            <div v-if="isRegister">
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5">Nama Lengkap</label>
-              <input
-                v-model="name"
-                type="text"
-                required
-                placeholder="Masukkan nama lengkap"
-                class="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#0B192C] focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-shadow"
-              />
-            </div>
-
             <div>
               <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5">Alamat Email</label>
               <input
@@ -200,9 +165,13 @@
               :disabled="submitting"
               class="w-full rounded-lg bg-[#0B192C] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
             >
-              {{ submitting ? 'Memproses...' : isRegister ? 'Daftar & Masuk' : 'Masuk ke Dashboard' }}
+              {{ submitting ? 'Memproses...' : 'Masuk ke Dashboard' }}
             </button>
           </form>
+
+          <p class="text-xs text-slate-500 text-center border-t border-slate-100 pt-4">
+            Belum memiliki akses? Hubungi Super Admin instansi untuk pembuatan akun baru.
+          </p>
         </div>
 
         <p class="text-center text-xs text-slate-400 lg:hidden">
@@ -214,40 +183,51 @@
 </template>
 
 <script setup lang="ts">
+const router = useRouter()
 const app = useArsipApp()
 const { currentUser, settings, companyLogoUrl } = app
 
-const isRegister = ref(false)
-const name = ref('')
 const email = ref('')
 const password = ref('')
 const errorMsg = ref('')
 const submitting = ref(false)
 
+watch(
+  () => currentUser.value,
+  (user) => {
+    if (user) {
+      router.replace('/dashboard')
+    }
+  }
+)
+
 onMounted(async () => {
   await app.init()
   if (currentUser.value) {
-    await navigateTo('/dashboard')
+    await router.replace('/dashboard')
   }
 })
-
-function switchMode(registerMode: boolean) {
-  isRegister.value = registerMode
-  errorMsg.value = ''
-}
 
 async function handleSubmit() {
   errorMsg.value = ''
   submitting.value = true
   try {
-    const res = isRegister.value
-      ? await app.registerDemoOrSupabase(name.value, email.value, password.value)
-      : await app.login(email.value, password.value)
+    const res = await app.login(email.value, password.value)
     if (!res.ok) {
       errorMsg.value = res.error || 'Gagal melakukan autentikasi.'
       return
     }
-    await navigateTo('/dashboard')
+    await router.replace('/dashboard')
+    await nextTick()
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) {
+      window.location.assign('/dashboard')
+    }
+  } catch (err: any) {
+    if (currentUser.value && typeof window !== 'undefined') {
+      window.location.assign('/dashboard')
+      return
+    }
+    errorMsg.value = err?.message || 'Terjadi kesalahan saat memproses autentikasi.'
   } finally {
     submitting.value = false
   }

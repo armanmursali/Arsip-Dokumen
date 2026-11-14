@@ -5,15 +5,15 @@
       <div>
         <div class="flex items-center gap-2.5">
           <h1 class="text-2xl font-bold tracking-tight text-slate-900">Subjek Arsip</h1>
-          <span class="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-semibold text-slate-700 tabular-nums">
+          <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
             {{ filtered.length }}
           </span>
         </div>
         <p class="text-sm text-slate-500 mt-0.5">Kelola klasifikasi subjek arsip tingkat kedua beserta warna badge.</p>
       </div>
-      <div class="flex items-center gap-2.5">
+      <div v-if="canDeleteSubjek || canCreateSubjek" class="flex items-center gap-2.5">
         <button
-          v-if="selectedIds.length > 0"
+          v-if="canDeleteSubjek && selectedIds.length > 0"
           type="button"
           @click="handleBulkDelete"
           class="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 transition-colors"
@@ -21,6 +21,7 @@
           Hapus Terpilih ({{ selectedIds.length }})
         </button>
         <button
+          v-if="canCreateSubjek"
           type="button"
           @click="openCreate"
           class="inline-flex items-center gap-1.5 rounded-lg bg-[#0B192C] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
@@ -60,19 +61,19 @@
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="bg-slate-50/90">
             <tr>
-              <th class="px-4 py-3 text-left w-10">
+              <th v-if="canDeleteSubjek" class="px-4 py-3 text-left w-10">
                 <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" class="rounded border-slate-300 text-[#0B192C] focus:ring-sky-500" />
               </th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Nama</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Badge</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Deskripsi</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Dibuat</th>
-              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Aksi</th>
+              <th v-if="canUpdateSubjek || canDeleteSubjek" class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
             <tr v-for="item in filtered" :key="item.id" class="hover:bg-slate-50/80 transition-colors">
-              <td class="px-4 py-3.5">
+              <td v-if="canDeleteSubjek" class="px-4 py-3.5">
                 <input v-model="selectedIds" type="checkbox" :value="item.id" class="rounded border-slate-300 text-[#0B192C] focus:ring-sky-500" />
               </td>
               <td class="px-4 py-3.5 font-medium text-slate-900 whitespace-nowrap">{{ item.nama }}</td>
@@ -87,13 +88,28 @@
               </td>
               <td class="px-4 py-3.5 text-slate-600 max-w-md truncate">{{ item.deskripsi || '-' }}</td>
               <td class="px-4 py-3.5 text-slate-600 whitespace-nowrap tabular-nums">{{ formatDate(item.created_at) }}</td>
-              <td class="px-4 py-3.5 text-right whitespace-nowrap space-x-3">
-                <button type="button" @click="openEdit(item)" class="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline">Edit</button>
-                <button type="button" @click="handleDelete(item.id)" class="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline">Hapus</button>
+              <td v-if="canUpdateSubjek || canDeleteSubjek" class="px-4 py-3.5 text-right whitespace-nowrap w-14">
+                <RowActionMenu
+                  :items="[
+                    {
+                      label: 'Edit Subjek',
+                      onClick: () => openEdit(item),
+                      icon: 'edit',
+                      show: canUpdateSubjek
+                    },
+                    {
+                      label: 'Hapus Subjek',
+                      onClick: () => handleDelete(item.id),
+                      icon: 'delete',
+                      variant: 'danger',
+                      show: canDeleteSubjek
+                    }
+                  ]"
+                />
               </td>
             </tr>
             <tr v-if="filtered.length === 0">
-              <td colspan="6" class="px-6 py-10 text-center text-slate-500">Belum ada data subjek arsip.</td>
+              <td :colspan="4 + (canDeleteSubjek ? 1 : 0) + (canUpdateSubjek || canDeleteSubjek ? 1 : 0)" class="px-6 py-10 text-center text-slate-500">Belum ada data subjek arsip.</td>
             </tr>
           </tbody>
         </table>
@@ -101,7 +117,7 @@
     </div>
 
     <!-- Modal Form -->
-    <div v-if="modalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px] p-4">
+    <div v-if="modalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div class="bg-white rounded-xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 class="text-lg font-semibold text-slate-900">{{ editingId ? 'Edit Subjek Arsip' : 'Buat Subjek Arsip' }}</h3>
@@ -182,7 +198,7 @@ definePageMeta({
 })
 
 const app = useArsipApp()
-const { subjeks } = app
+const { subjeks, canCreateSubjek, canUpdateSubjek, canDeleteSubjek } = app
 
 const search = ref('')
 const selectedIds = ref<number[]>([])
@@ -238,13 +254,25 @@ async function handleSave() {
 }
 
 async function handleDelete(id: number) {
-  if (!confirm('Hapus subjek arsip ini?')) return
+  const ok = await app.confirmDialog({
+    title: 'Hapus Subjek Arsip?',
+    message: 'Subjek arsip ini akan dihapus dari daftar klasifikasi.',
+    confirmText: 'Ya, Hapus',
+    variant: 'danger'
+  })
+  if (!ok) return
   await app.deleteSubjek(id)
   selectedIds.value = selectedIds.value.filter((x) => x !== id)
 }
 
 async function handleBulkDelete() {
-  if (!confirm(`Hapus ${selectedIds.value.length} subjek terpilih?`)) return
+  const ok = await app.confirmDialog({
+    title: 'Hapus Subjek Terpilih?',
+    message: `Hapus ${selectedIds.value.length} subjek arsip terpilih?`,
+    confirmText: 'Ya, Hapus Semua',
+    variant: 'danger'
+  })
+  if (!ok) return
   for (const id of [...selectedIds.value]) {
     await app.deleteSubjek(id)
   }

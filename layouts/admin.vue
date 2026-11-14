@@ -12,7 +12,7 @@
       <div
         v-if="mobileOpen"
         @click="mobileOpen = false"
-        class="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm lg:hidden"
+        class="fixed inset-0 z-40 bg-slate-950/60 lg:hidden"
       ></div>
     </Transition>
 
@@ -106,6 +106,7 @@
           </NuxtLink>
 
           <NuxtLink
+            v-if="hasPermission('view_any_arsip')"
             to="/dashboard/arsip"
             @click="mobileOpen = false"
             title="Arsip"
@@ -136,6 +137,7 @@
           </NuxtLink>
 
           <NuxtLink
+            v-if="canCreateArsip"
             to="/dashboard/picture-to-pdf"
             @click="mobileOpen = false"
             title="Picture to PDF"
@@ -176,7 +178,7 @@
         </div>
 
         <!-- Collapsible Group: Manajemen Arsip -->
-        <div>
+        <div v-if="hasPermission('view_any_kategori') || hasPermission('view_any_subjek') || hasPermission('view_any_arsip') || canRestoreArsip || canForceDeleteArsip">
           <button
             v-if="!isCollapsed"
             type="button"
@@ -197,6 +199,7 @@
           <div v-else class="my-2 border-t border-white/10 mx-2"></div>
           <div v-show="groups.manajemen || isCollapsed" :class="[!isCollapsed ? 'mt-1.5' : '', 'space-y-1']">
             <NuxtLink
+              v-if="hasPermission('view_any_kategori')"
               to="/dashboard/kategori"
               @click="mobileOpen = false"
               title="Fungsi Arsip"
@@ -222,11 +225,12 @@
                   'ml-auto px-2 py-0.5 text-[11px] font-semibold rounded-md tabular-nums shrink-0'
                 ]"
               >
-                {{ kategoris.length }}
+                {{ visibleKategoris.length }}
               </span>
             </NuxtLink>
 
             <NuxtLink
+              v-if="hasPermission('view_any_subjek')"
               to="/dashboard/subjek"
               @click="mobileOpen = false"
               title="Subjek Arsip"
@@ -257,6 +261,7 @@
             </NuxtLink>
 
             <NuxtLink
+              v-if="hasPermission('view_any_arsip')"
               to="/dashboard/metadata"
               @click="mobileOpen = false"
               title="Metadata"
@@ -276,6 +281,7 @@
             </NuxtLink>
 
             <NuxtLink
+              v-if="canRestoreArsip || canForceDeleteArsip"
               to="/dashboard/trash"
               @click="mobileOpen = false"
               title="Trash Arsip"
@@ -300,7 +306,7 @@
         </div>
 
         <!-- Collapsible Group: Pengaturan Sistem -->
-        <div>
+        <div v-if="isSuperAdmin || hasPermission('view_audit_trail')">
           <button
             v-if="!isCollapsed"
             type="button"
@@ -321,6 +327,7 @@
           <div v-else class="my-2 border-t border-white/10 mx-2"></div>
           <div v-show="groups.settings || isCollapsed" :class="[!isCollapsed ? 'mt-1.5' : '', 'space-y-1']">
             <NuxtLink
+              v-if="isSuperAdmin"
               to="/dashboard/users"
               @click="mobileOpen = false"
               title="Users"
@@ -340,6 +347,7 @@
             </NuxtLink>
 
             <NuxtLink
+              v-if="isSuperAdmin"
               to="/dashboard/roles"
               @click="mobileOpen = false"
               title="Roles"
@@ -359,6 +367,7 @@
             </NuxtLink>
 
             <NuxtLink
+              v-if="isSuperAdmin || hasPermission('view_audit_trail')"
               to="/dashboard/audit-trails"
               @click="mobileOpen = false"
               title="Audit Trails"
@@ -378,6 +387,7 @@
             </NuxtLink>
 
             <NuxtLink
+              v-if="isSuperAdmin"
               to="/dashboard/settings"
               @click="mobileOpen = false"
               title="Settings"
@@ -416,8 +426,8 @@
               <div class="text-xs font-semibold text-white group-hover:text-sky-300 truncate transition-colors">
                 {{ currentUser?.name || 'Pengguna' }}
               </div>
-              <div class="text-[11px] text-slate-400 capitalize truncate">
-                {{ currentUser?.role || 'operator' }}
+              <div class="text-[11px] text-slate-400 truncate">
+                {{ formatRoleLabel(currentUser?.role) }}
               </div>
             </div>
           </NuxtLink>
@@ -495,6 +505,7 @@
 
         <div class="flex items-center gap-3 shrink-0">
           <NuxtLink
+            v-if="canCreateArsip && !route.path.startsWith('/dashboard/arsip')"
             to="/dashboard/arsip/create"
             class="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-[#0B192C] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
           >
@@ -519,8 +530,8 @@
                 <div class="text-xs font-semibold text-slate-900 leading-tight">
                   {{ currentUser?.name || 'Pengguna' }}
                 </div>
-                <div class="text-[11px] text-slate-500 capitalize leading-tight">
-                  {{ currentUser?.role || 'user' }}
+                <div class="text-[11px] text-slate-500 leading-tight">
+                  {{ formatRoleLabel(currentUser?.role) }}
                 </div>
               </div>
               <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -701,6 +712,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatRoleLabel } from '~/composables/useArsipApp'
+
 const SIDEBAR_COLLAPSE_STORAGE_KEY = 'digital-arsip:sidebar-collapsed'
 
 const route = useRoute()
@@ -709,10 +722,15 @@ const {
   currentUser,
   activeArsips,
   trashedArsips,
-  kategoris,
+  visibleKategoris,
   subjeks,
   settings,
-  companyLogoUrl
+  companyLogoUrl,
+  isSuperAdmin,
+  canCreateArsip,
+  canRestoreArsip,
+  canForceDeleteArsip,
+  hasPermission
 } = app
 
 const groups = reactive({
@@ -823,6 +841,8 @@ onMounted(async () => {
   triggerPageSkeleton(280)
   if (!currentUser.value) {
     await navigateTo('/login')
+  } else if (!app.canAccessPath(route.path)) {
+    await navigateTo('/dashboard')
   }
 })
 

@@ -1,78 +1,314 @@
 <template>
   <div class="space-y-6">
+    <!-- Page Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-gray-900">Roles &amp; Permissions</h1>
-        <p class="text-sm text-gray-500">Atur role pengguna dan hak akses fitur (RBAC).</p>
+        <div class="flex items-center gap-2.5">
+          <h1 class="text-2xl font-bold tracking-tight text-slate-900">Roles &amp; Pengaturan Akses Data</h1>
+          <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+            {{ roles.length }}
+          </span>
+        </div>
+        <p class="text-sm text-slate-500 mt-0.5">
+          Sistem menggunakan 3 role standar (<span class="font-semibold text-slate-700">superadmin</span>,
+          <span class="font-semibold text-slate-700">writer</span>,
+          <span class="font-semibold text-slate-700">viewer</span>). Atur data dan modul apa saja yang boleh dilihat maupun diedit per role.
+        </p>
       </div>
-      <button
-        type="button"
-        @click="openCreate"
-        class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-      >
-        + Buat Role
-      </button>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div v-if="statusMsg" class="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">
+      {{ statusMsg }}
+    </div>
+    <div v-if="errMsg" class="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-800">
+      {{ errMsg }}
+    </div>
+
+    <!-- 3 Role Cards -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
       <div
         v-for="r in roles"
-        :key="r.id"
-        class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col justify-between gap-4"
+        :key="r.name"
+        class="bg-white rounded-xl border border-slate-200/90 shadow-sm p-5 flex flex-col justify-between gap-5"
       >
-        <div>
-          <div class="flex items-center justify-between">
-            <h3 class="text-base font-bold text-gray-900">{{ r.name }}</h3>
-            <div class="flex items-center gap-2">
-              <button type="button" @click="openEdit(r)" class="text-xs font-semibold text-amber-600 hover:underline">Edit</button>
-              <button type="button" @click="handleDelete(r.id)" class="text-xs font-semibold text-red-600 hover:underline">Hapus</button>
+        <div class="space-y-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-bold text-slate-900">{{ formatRoleLabel(r.name) }}</h2>
+                <span
+                  :class="[
+                    roleBadgeClass(r.name),
+                    'px-2 py-0.5 rounded-md text-[11px] font-semibold font-mono'
+                  ]"
+                >
+                  {{ r.name }}
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                {{ roleDescription(r.name) }}
+              </p>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mt-1">{{ r.permissions.length }} permissions aktif</p>
-          <div class="mt-3 flex flex-wrap gap-1.5">
-            <span
-              v-for="perm in r.permissions"
-              :key="perm"
-              class="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-medium"
-            >
-              {{ perm }}
-            </span>
+
+          <!-- Category Scope Summary -->
+          <div class="rounded-lg bg-slate-50 border border-slate-200/80 p-3 space-y-2.5 text-xs">
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">Cakupan Data Dilihat</div>
+              <div v-if="r.name === 'superadmin'" class="text-slate-600">Semua kategori &amp; seluruh data sistem</div>
+              <div v-else-if="getScopeIds(r.permissions, 'scope_view_kategori:').length === 0" class="text-slate-600">
+                Semua Kategori ({{ kategoris.length }})
+              </div>
+              <div v-else class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="kid in getScopeIds(r.permissions, 'scope_view_kategori:')"
+                  :key="`v-${kid}`"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium"
+                  :style="computeBadgeStyle(app.getKategori(kid)?.color)"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: app.getKategori(kid)?.color || '#64748b' }"></span>
+                  <span>{{ app.getKategori(kid)?.nama || `Kategori #${kid}` }}</span>
+                </span>
+              </div>
+            </div>
+
+            <div v-if="r.name !== 'viewer'">
+              <div class="font-semibold text-slate-700 mb-1">Cakupan Data Diedit / Dikelola</div>
+              <div v-if="r.name === 'superadmin'" class="text-slate-600">Semua kategori &amp; pengaturan penuh</div>
+              <div v-else-if="getScopeIds(r.permissions, 'scope_edit_kategori:').length === 0" class="text-slate-600">
+                Semua kategori yang dapat dilihat
+              </div>
+              <div v-else class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="kid in getScopeIds(r.permissions, 'scope_edit_kategori:')"
+                  :key="`e-${kid}`"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium"
+                  :style="computeBadgeStyle(app.getKategori(kid)?.color)"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: app.getKategori(kid)?.color || '#64748b' }"></span>
+                  <span>{{ app.getKategori(kid)?.nama || `Kategori #${kid}` }}</span>
+                </span>
+              </div>
+            </div>
           </div>
+
+          <!-- Active Permissions -->
+          <div>
+            <div class="flex items-center justify-between text-xs mb-2">
+              <span class="font-semibold text-slate-700">Permission Aktif</span>
+              <span class="text-slate-500 tabular-nums">{{ extractBase(r.permissions).length }} modul/aksi</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+              <span
+                v-for="perm in extractBase(r.permissions)"
+                :key="perm"
+                class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-medium"
+              >
+                {{ formatPermLabel(perm) }}
+              </span>
+              <span v-if="extractBase(r.permissions).length === 0" class="text-xs text-slate-400">
+                Tidak ada modul aktif.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100">
+          <div
+            v-if="r.name === 'superadmin'"
+            class="w-full text-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
+          >
+            Semua Permission Aktif (Terkunci)
+          </div>
+          <button
+            v-else
+            type="button"
+            @click="openEdit(r)"
+            class="w-full rounded-lg bg-[#0B192C] px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+          >
+            Atur Akses Data &amp; Permission
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Modal Form -->
-    <div v-if="modalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-gray-900">{{ editingId ? 'Edit Role' : 'Buat Role Baru' }}</h3>
-          <button type="button" @click="modalOpen = false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+    <!-- Modal Configure Role Data Scope & Permissions -->
+    <div v-if="modalOpen && editingRole" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900">
+              Atur Akses Role: {{ formatRoleLabel(editingRole.name) }}
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Tentukan modul, aksi, dan kategori data yang boleh diakses oleh role ini.
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="modalOpen = false"
+            class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <form @submit.prevent="handleSave" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Role *</label>
-            <input v-model="form.name" type="text" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-          </div>
+        <div
+          v-if="editingRole.name === 'viewer'"
+          class="rounded-lg bg-sky-50 border border-sky-200 px-3.5 py-2.5 text-xs text-sky-800"
+        >
+          Role <span class="font-semibold">Viewer</span> hanya diperbolehkan melihat data. Seluruh akses tambah, edit, dan hapus data dinonaktifkan secara otomatis.
+        </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
-              <label
-                v-for="perm in ALL_PERMISSIONS"
-                :key="perm"
-                class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer"
+        <div
+          v-if="modalErr"
+          class="rounded-lg bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-xs text-rose-800"
+        >
+          {{ modalErr }}
+        </div>
+
+        <form @submit.prevent="handleSave" class="space-y-5">
+          <!-- Section 1: Module & Action Permissions -->
+          <div class="space-y-3">
+            <h4 class="text-sm font-semibold text-slate-900">1. Akses Modul &amp; Aksi Data</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                v-for="group in PERMISSION_GROUPS"
+                :key="group.title"
+                class="rounded-xl border border-slate-200 p-3.5 space-y-2.5 bg-slate-50/50"
               >
-                <input v-model="form.permissions" type="checkbox" :value="perm" class="rounded border-gray-300 text-primary-600" />
-                <span>{{ perm }}</span>
-              </label>
+                <div class="text-xs font-bold uppercase tracking-wider text-slate-600">{{ group.title }}</div>
+                <div class="space-y-1.5">
+                  <label
+                    v-for="item in group.items"
+                    :key="item.key"
+                    :class="[
+                      isPermDisabled(item.key) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                      'flex items-center gap-2 text-xs text-slate-700'
+                    ]"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="hasDraftPerm(item.key)"
+                      :disabled="isPermDisabled(item.key)"
+                      @change="toggleDraftPerm(item.key, ($event.target as HTMLInputElement).checked)"
+                      class="rounded border-slate-300 text-[#0B192C] focus:ring-sky-500"
+                    />
+                    <span>{{ item.label }}</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="flex justify-end gap-2 pt-2">
-            <button type="button" @click="modalOpen = false" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700">Batal</button>
-            <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">Simpan</button>
+          <!-- Section 2: Viewable Category Data Scope -->
+          <div class="space-y-2.5 border-t border-slate-100 pt-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-semibold text-slate-900">2. Data Kategori (Fungsi Arsip) yang Bisa Dilihat</h4>
+                <p class="text-xs text-slate-500">Batasi arsip dan fungsi arsip berdasarkan kategori tertentu.</p>
+              </div>
+              <select
+                v-model="draft.viewScopeMode"
+                class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium bg-white text-slate-800"
+              >
+                <option value="all">Semua Kategori</option>
+                <option value="custom">Pilih Kategori Tertentu</option>
+              </select>
+            </div>
+
+            <div
+              v-if="draft.viewScopeMode === 'custom'"
+              class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 p-3 bg-slate-50/50 max-h-48 overflow-y-auto"
+            >
+              <label
+                v-for="k in kategoris"
+                :key="`view-cat-${k.id}`"
+                class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"
+              >
+                <input
+                  v-model="draft.viewKategoriIds"
+                  type="checkbox"
+                  :value="k.id"
+                  class="rounded border-slate-300 text-[#0B192C] focus:ring-sky-500"
+                />
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: k.color }"></span>
+                  <span>{{ k.nama }}</span>
+                </span>
+              </label>
+              <p v-if="kategoris.length === 0" class="text-xs text-slate-400 col-span-2">Belum ada data kategori.</p>
+            </div>
+          </div>
+
+          <!-- Section 3: Editable Category Data Scope (Writer only) -->
+          <div v-if="editingRole.name === 'writer'" class="space-y-2.5 border-t border-slate-100 pt-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-semibold text-slate-900">3. Data Kategori yang Bisa Dibuat / Diedit / Dihapus</h4>
+                <p class="text-xs text-slate-500">Atur kategori mana saja yang dapat diubah oleh Writer.</p>
+              </div>
+              <select
+                v-model="draft.editScopeMode"
+                class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium bg-white text-slate-800"
+              >
+                <option value="all">Semua Kategori yang Dapat Dilihat</option>
+                <option value="custom">Pilih Kategori Tertentu</option>
+              </select>
+            </div>
+
+            <div
+              v-if="draft.editScopeMode === 'custom'"
+              class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 p-3 bg-slate-50/50 max-h-48 overflow-y-auto"
+            >
+              <label
+                v-for="k in selectableEditKategoris"
+                :key="`edit-cat-${k.id}`"
+                class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"
+              >
+                <input
+                  v-model="draft.editKategoriIds"
+                  type="checkbox"
+                  :value="k.id"
+                  class="rounded border-slate-300 text-[#0B192C] focus:ring-sky-500"
+                />
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: k.color }"></span>
+                  <span>{{ k.nama }}</span>
+                </span>
+              </label>
+              <p v-if="selectableEditKategoris.length === 0" class="text-xs text-slate-400 col-span-2">
+                Pilih minimal satu kategori yang dapat dilihat terlebih dahulu.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              @click="resetDraftToDefault"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              Reset Default Role
+            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                @click="modalOpen = false"
+                class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                :disabled="saving"
+                class="rounded-lg bg-[#0B192C] px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {{ saving ? 'Menyimpan...' : 'Simpan Pengaturan' }}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -81,6 +317,16 @@
 </template>
 
 <script setup lang="ts">
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  VIEWER_ALLOWED_PERMISSIONS,
+  buildPermissionsWithScopes,
+  computeBadgeStyle,
+  extractBasePermissions,
+  extractScopeIds,
+  formatRoleLabel,
+  type AppRole
+} from '~/composables/useArsipApp'
 import type { RoleRecord } from '~/types/arsip'
 
 definePageMeta({
@@ -88,74 +334,205 @@ definePageMeta({
   middleware: 'auth'
 })
 
-const ALL_PERMISSIONS = [
-  'view_any_arsip',
-  'view_arsip',
-  'create_arsip',
-  'update_arsip',
-  'delete_arsip',
-  'restore_arsip',
-  'force_delete_arsip',
-  'view_any_kategori',
-  'create_kategori',
-  'update_kategori',
-  'delete_kategori',
-  'view_any_subjek',
-  'create_subjek',
-  'update_subjek',
-  'delete_subjek',
-  'view_any_user',
-  'create_user',
-  'update_user',
-  'delete_user',
-  'view_any_role',
-  'create_role',
-  'update_role',
-  'delete_role',
-  'view_audit_trail',
-  'manage_settings'
+const PERMISSION_GROUPS = [
+  {
+    title: 'Data Arsip',
+    items: [
+      { key: 'view_any_arsip', label: 'Lihat Daftar & Detail Arsip' },
+      { key: 'create_arsip', label: 'Buat / Upload Arsip' },
+      { key: 'update_arsip', label: 'Edit & Versi Baru Arsip' },
+      { key: 'delete_arsip', label: 'Hapus ke Trash' },
+      { key: 'restore_arsip', label: 'Pulihkan dari Trash' },
+      { key: 'force_delete_arsip', label: 'Hapus Permanen Arsip' }
+    ]
+  },
+  {
+    title: 'Fungsi Arsip (Kategori)',
+    items: [
+      { key: 'view_any_kategori', label: 'Lihat Fungsi Arsip' },
+      { key: 'create_kategori', label: 'Buat Fungsi Arsip' },
+      { key: 'update_kategori', label: 'Edit Fungsi Arsip' },
+      { key: 'delete_kategori', label: 'Hapus Fungsi Arsip' }
+    ]
+  },
+  {
+    title: 'Subjek Arsip',
+    items: [
+      { key: 'view_any_subjek', label: 'Lihat Subjek Arsip' },
+      { key: 'create_subjek', label: 'Buat Subjek Arsip' },
+      { key: 'update_subjek', label: 'Edit Subjek Arsip' },
+      { key: 'delete_subjek', label: 'Hapus Subjek Arsip' }
+    ]
+  },
+  {
+    title: 'Monitoring',
+    items: [{ key: 'view_audit_trail', label: 'Lihat Log Audit Trail' }]
+  }
 ]
 
+const PERM_LABELS: Record<string, string> = {
+  view_any_arsip: 'Lihat Arsip',
+  view_arsip: 'Detail Arsip',
+  create_arsip: 'Buat Arsip',
+  update_arsip: 'Edit Arsip',
+  delete_arsip: 'Hapus Arsip',
+  restore_arsip: 'Restore Trash',
+  force_delete_arsip: 'Hapus Permanen',
+  view_any_kategori: 'Lihat Kategori',
+  create_kategori: 'Buat Kategori',
+  update_kategori: 'Edit Kategori',
+  delete_kategori: 'Hapus Kategori',
+  view_any_subjek: 'Lihat Subjek',
+  create_subjek: 'Buat Subjek',
+  update_subjek: 'Edit Subjek',
+  delete_subjek: 'Hapus Subjek',
+  view_any_user: 'Lihat Users',
+  create_user: 'Buat User',
+  update_user: 'Edit User',
+  delete_user: 'Hapus User',
+  view_any_role: 'Lihat Roles',
+  create_role: 'Buat Role',
+  update_role: 'Atur Role',
+  delete_role: 'Hapus Role',
+  view_audit_trail: 'Audit Trail',
+  manage_settings: 'Pengaturan Sistem'
+}
+
 const app = useArsipApp()
-const { roles } = app
+const { roles, kategoris } = app
 
 const modalOpen = ref(false)
-const editingId = ref<number | null>(null)
-const form = reactive({
-  name: '',
-  permissions: [] as string[]
+const saving = ref(false)
+const statusMsg = ref('')
+const errMsg = ref('')
+const modalErr = ref('')
+const editingRole = ref<RoleRecord | null>(null)
+
+const draft = reactive({
+  permissions: [] as string[],
+  viewScopeMode: 'all' as 'all' | 'custom',
+  viewKategoriIds: [] as number[],
+  editScopeMode: 'all' as 'all' | 'custom',
+  editKategoriIds: [] as number[]
+})
+
+const selectableEditKategoris = computed(() => {
+  if (draft.viewScopeMode === 'all') return kategoris.value
+  return kategoris.value.filter((k) => draft.viewKategoriIds.includes(k.id))
 })
 
 onMounted(async () => {
   await app.init()
 })
 
-function openCreate() {
-  editingId.value = null
-  form.name = ''
-  form.permissions = ['view_any_arsip', 'view_arsip']
-  modalOpen.value = true
+function getScopeIds(perms: string[], prefix: 'scope_view_kategori:' | 'scope_edit_kategori:') {
+  return extractScopeIds(perms, prefix)
+}
+
+function extractBase(perms: string[]) {
+  return extractBasePermissions(perms)
+}
+
+function formatPermLabel(perm: string): string {
+  return PERM_LABELS[perm] || perm
+}
+
+function roleBadgeClass(name: string): string {
+  if (name === 'superadmin') return 'bg-[#0B192C] text-white'
+  if (name === 'writer') return 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200'
+  return 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
+}
+
+function roleDescription(name: string): string {
+  if (name === 'superadmin') {
+    return 'Akses penuh ke seluruh data, manajemen pengguna, pengaturan role, audit trail, dan konfigurasi aplikasi.'
+  }
+  if (name === 'writer') {
+    return 'Dapat melihat, membuat, mengedit, dan menghapus data arsip serta master data sesuai cakupan yang diatur.'
+  }
+  return 'Hanya dapat melihat data yang diizinkan. Seluruh aksi tambah, ubah, dan hapus data dinonaktifkan.'
+}
+
+function isPermDisabled(permKey: string): boolean {
+  if (!editingRole.value) return true
+  if (editingRole.value.name === 'viewer') {
+    return !VIEWER_ALLOWED_PERMISSIONS.includes(permKey)
+  }
+  return false
+}
+
+function hasDraftPerm(permKey: string): boolean {
+  return draft.permissions.includes(permKey)
+}
+
+function toggleDraftPerm(permKey: string, checked: boolean) {
+  const set = new Set(draft.permissions)
+  if (checked) {
+    set.add(permKey)
+    if (permKey === 'view_any_arsip') set.add('view_arsip')
+  } else {
+    set.delete(permKey)
+    if (permKey === 'view_any_arsip') set.delete('view_arsip')
+  }
+  draft.permissions = Array.from(set)
 }
 
 function openEdit(r: RoleRecord) {
-  editingId.value = r.id
-  form.name = r.name
-  form.permissions = [...r.permissions]
+  errMsg.value = ''
+  modalErr.value = ''
+  statusMsg.value = ''
+  editingRole.value = r
+  draft.permissions = extractBasePermissions(r.permissions)
+  const viewIds = extractScopeIds(r.permissions, 'scope_view_kategori:')
+  const editIds = extractScopeIds(r.permissions, 'scope_edit_kategori:')
+  draft.viewScopeMode = viewIds.length > 0 ? 'custom' : 'all'
+  draft.viewKategoriIds = viewIds.length > 0 ? [...viewIds] : kategoris.value.map((k) => k.id)
+  draft.editScopeMode = editIds.length > 0 ? 'custom' : 'all'
+  draft.editKategoriIds = editIds.length > 0 ? [...editIds] : kategoris.value.map((k) => k.id)
   modalOpen.value = true
 }
 
-async function handleSave() {
-  if (editingId.value) {
-    await app.updateRole(editingId.value, { name: form.name, permissions: form.permissions })
-  } else {
-    await app.createRole({ name: form.name, permissions: form.permissions })
-  }
-  modalOpen.value = false
+function resetDraftToDefault() {
+  if (!editingRole.value) return
+  const rName = editingRole.value.name as AppRole
+  draft.permissions = [...DEFAULT_ROLE_PERMISSIONS[rName]]
+  draft.viewScopeMode = 'all'
+  draft.viewKategoriIds = kategoris.value.map((k) => k.id)
+  draft.editScopeMode = 'all'
+  draft.editKategoriIds = kategoris.value.map((k) => k.id)
 }
 
-async function handleDelete(id: number) {
-  if (!confirm('Hapus role ini?')) return
-  await app.deleteRole(id)
+async function handleSave() {
+  if (!editingRole.value) return
+  errMsg.value = ''
+  modalErr.value = ''
+  if (draft.viewScopeMode === 'custom' && draft.viewKategoriIds.length === 0) {
+    modalErr.value = 'Pilih minimal 1 kategori yang dapat dilihat, atau ubah ke Semua Kategori.'
+    return
+  }
+  if (editingRole.value.name === 'writer' && draft.editScopeMode === 'custom' && draft.editKategoriIds.length === 0) {
+    modalErr.value = 'Pilih minimal 1 kategori yang dapat diedit, atau ubah ke Semua Kategori.'
+    return
+  }
+
+  saving.value = true
+  try {
+    const viewIds = draft.viewScopeMode === 'custom' ? draft.viewKategoriIds : []
+    const editIds =
+      editingRole.value.name === 'writer' && draft.editScopeMode === 'custom'
+        ? draft.editKategoriIds.filter((id) => viewIds.length === 0 || viewIds.includes(id))
+        : []
+    const nextPermissions = buildPermissionsWithScopes(draft.permissions, viewIds, editIds)
+    await app.updateRole(editingRole.value.id, {
+      name: editingRole.value.name,
+      permissions: nextPermissions
+    })
+    statusMsg.value = `Pengaturan akses role ${formatRoleLabel(editingRole.value.name)} berhasil diperbarui.`
+    modalOpen.value = false
+  } catch (err: any) {
+    modalErr.value = err?.message || 'Gagal menyimpan pengaturan role.'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
-

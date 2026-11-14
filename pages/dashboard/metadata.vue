@@ -71,7 +71,12 @@
               <td class="px-4 py-3 text-gray-600">{{ app.getSubjek(item.subjek_id)?.nama || '-' }}</td>
               <td class="px-4 py-3 text-gray-600">{{ app.getUserName(item) }}</td>
               <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ formatDateTime(item.created_at) }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ item.original_file_name || '-' }}</td>
+              <td class="px-4 py-3 text-gray-600">
+                <div class="inline-flex items-center gap-2">
+                  <FileTypeIcon :type="getDocType(item)" size="sm" />
+                  <span>{{ item.original_file_name || '-' }}</span>
+                </div>
+              </td>
               <td class="px-4 py-3 font-semibold text-primary-700">v{{ item.version }}</td>
             </tr>
             <tr v-if="filtered.length === 0">
@@ -86,6 +91,7 @@
 
 <script setup lang="ts">
 import * as XLSX from 'xlsx'
+import { getDocType } from '~/composables/useArsipApp'
 
 definePageMeta({
   layout: 'admin',
