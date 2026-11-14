@@ -1,3 +1,35 @@
+<script setup lang="ts">
+const app = useArsipApp()
+const { settings, companyLogoUrl } = app
+
+await useAsyncData('arsip-public-settings', () => app.loadPublicSettings())
+
+useHead(() => ({
+  title: settings.value.name ? `Digital Arsip — ${settings.value.name}` : 'Digital Arsip',
+  link: [
+    {
+      key: 'favicon',
+      rel: 'icon',
+      href: companyLogoUrl.value
+    },
+    {
+      key: 'shortcut-icon',
+      rel: 'shortcut icon',
+      href: companyLogoUrl.value
+    },
+    {
+      key: 'apple-touch-icon',
+      rel: 'apple-touch-icon',
+      href: companyLogoUrl.value
+    }
+  ]
+}))
+
+onMounted(() => {
+  app.init()
+})
+</script>
+
 <template>
   <div class="min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-sky-500 selection:text-white">
     <NuxtLayout>

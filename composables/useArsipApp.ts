@@ -10,7 +10,7 @@ import type {
 } from '~/types/arsip'
 
 const DEFAULT_PLACEHOLDER_LOGO =
-  'https://d1csarkz8obe9u.cloudfront.net/posterpreviews/company-logo-design-template-e089327a5c476ce5c70c74f7359c5898_screen.jpg?ts=1672291305'
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Crect width='64' height='64' rx='14' fill='%230B192C'/%3E%3Cpath d='M48.5 23L47.1 45.7A4.5 4.5 0 0 1 42.6 50H21.4a4.5 4.5 0 0 1-4.5-4.3L15.5 23m16.5 6v13.5m0 0l-6-6m6 6l6-6M14.75 23h34.5c1.24 0 2.25-1.01 2.25-2.25v-3c0-1.24-1.01-2.25-2.25-2.25h-34.5c-1.24 0-2.25 1.01-2.25 2.25v3c0 1.24 1.01 2.25 2.25 2.25Z' stroke='%2338BDF8' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
 
 export interface HeroConfig {
   title: string
@@ -372,6 +372,44 @@ export function useArsipApp() {
       .single()
     if (!error && data) {
       activityLogs.value.unshift(data as ActivityLogRecord)
+    }
+  }
+
+  async function loadPublicSettings() {
+    if (!supabase) return null
+    try {
+      const [setRes, heroRoleRes] = await Promise.all([
+        supabase.from('settings').select('*').limit(1).maybeSingle(),
+        supabase.from('roles').select('*').eq('name', 'app_config:hero').maybeSingle()
+      ])
+      let nextHero: HeroConfig = { ...DEFAULT_HERO_CONFIG }
+      if (heroRoleRes.data && Array.isArray(heroRoleRes.data.permissions) && typeof heroRoleRes.data.permissions[0] === 'string') {
+        try {
+          const parsed = JSON.parse(heroRoleRes.data.permissions[0])
+          nextHero = {
+            title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title : DEFAULT_HERO_CONFIG.title,
+            subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle : '',
+            image: typeof parsed.image === 'string' && parsed.image.trim() ? parsed.image : null
+          }
+        } catch {
+          // ignore malformed JSON
+        }
+      }
+      if (setRes.data) {
+        const sRow = setRes.data as SettingRecord
+        settings.value = sRow
+        if (sRow.hero_title || sRow.hero_subtitle || sRow.hero_image) {
+          nextHero = {
+            title: sRow.hero_title?.trim() || nextHero.title,
+            subtitle: sRow.hero_subtitle ?? nextHero.subtitle,
+            image: sRow.hero_image !== undefined ? sRow.hero_image : nextHero.image
+          }
+        }
+      }
+      heroConfig.value = nextHero
+      return settings.value
+    } catch {
+      return null
     }
   }
 
@@ -1662,6 +1700,7 @@ export function useArsipApp() {
     visibleKategoris,
     editableKategoris,
     canAccessPath,
+    loadPublicSettings,
     init,
     login,
     registerDemoOrSupabase,
