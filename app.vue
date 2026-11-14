@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const app = useArsipApp()
+const router = useRouter()
+const route = useRoute()
 const { settings, companyLogoUrl } = app
 
 const faviconHref = computed(() => (settings.value.logo ? companyLogoUrl.value : '/favicon.ico'))
@@ -25,7 +27,33 @@ useHead(() => ({
   ]
 }))
 
+function hasOAuthCallbackParams(): boolean {
+  if (typeof window === 'undefined') return false
+  const hash = window.location.hash || ''
+  const search = window.location.search || ''
+  return (
+    hash.includes('access_token=') ||
+    hash.includes('error=') ||
+    search.includes('code=') ||
+    search.includes('error=')
+  )
+}
+
 onMounted(async () => {
+  const isOAuthCallback = hasOAuthCallbackParams()
+  if (isOAuthCallback) {
+    await app.withActionLoading('Memverifikasi akun & mengalihkan ke Dashboard...', async () => {
+      await app.loadPublicSettings()
+      await app.init(true)
+      if (app.currentUser.value && (route.path === '/' || route.path === '/login')) {
+        await router.replace('/dashboard')
+      } else if (app.oauthError.value && route.path === '/') {
+        await router.replace('/login')
+      }
+    })
+    return
+  }
+
   await app.loadPublicSettings()
   await app.init()
 })

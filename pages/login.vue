@@ -213,24 +213,52 @@ const password = ref('')
 const errorMsg = ref('')
 const submitting = ref(false)
 
+function hasOAuthCallback(): boolean {
+  if (typeof window === 'undefined') return false
+  const hash = window.location.hash || ''
+  const search = window.location.search || ''
+  return hash.includes('access_token=') || search.includes('code=')
+}
+
+async function redirectToDashboardWithLoading() {
+  await app.withActionLoading('Login berhasil, membuka Dashboard...', async () => {
+    await router.replace('/dashboard')
+    await nextTick()
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) {
+      window.location.assign('/dashboard')
+    }
+  })
+}
+
 watch(
   () => currentUser.value,
-  (user) => {
+  async (user) => {
     if (user) {
-      router.replace('/dashboard')
+      await redirectToDashboardWithLoading()
     }
   }
 )
 
 onMounted(async () => {
+  if (hasOAuthCallback()) {
+    await app.withActionLoading('Memverifikasi akun Google & membuka Dashboard...', async () => {
+      await app.init(true)
+      if (currentUser.value) {
+        await redirectToDashboardWithLoading()
+      }
+    })
+    return
+  }
+
   await app.init()
   if (currentUser.value) {
-    await router.replace('/dashboard')
+    await redirectToDashboardWithLoading()
   }
 })
 
 async function handleSubmit() {
   errorMsg.value = ''
+  oauthError.value = ''
   submitting.value = true
   try {
     const res = await app.login(email.value, password.value)
@@ -238,14 +266,10 @@ async function handleSubmit() {
       errorMsg.value = res.error || 'Gagal melakukan autentikasi.'
       return
     }
-    await router.replace('/dashboard')
-    await nextTick()
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) {
-      window.location.assign('/dashboard')
-    }
+    await redirectToDashboardWithLoading()
   } catch (err: any) {
     if (currentUser.value && typeof window !== 'undefined') {
-      window.location.assign('/dashboard')
+      await redirectToDashboardWithLoading()
       return
     }
     errorMsg.value = err?.message || 'Terjadi kesalahan saat memproses autentikasi.'
@@ -259,7 +283,7 @@ async function handleGoogleLogin() {
   oauthError.value = ''
   submitting.value = true
   try {
-    const res = await app.loginWithGoogle()
+    const res = await app.loginWithGoogle(email.value.trim() || undefined)
     if (!res.ok) {
       errorMsg.value = res.error || 'Gagal menghubungkan ke Google.'
       submitting.value = false

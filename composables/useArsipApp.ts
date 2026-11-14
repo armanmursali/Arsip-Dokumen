@@ -421,20 +421,26 @@ export function useArsipApp() {
 
     loading.value = true
     try {
-      const { data: sessionData } = await sb.auth.getSession()
+      let { data: sessionData } = await sb.auth.getSession()
+      if (!sessionData.session && typeof window !== 'undefined' && window.location.hash.includes('access_token=')) {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        if (accessToken && refreshToken) {
+          const { data: setRes } = await sb.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+          if (setRes.session) {
+            sessionData = { session: setRes.session }
+          }
+        }
+      }
       const authUser = sessionData.session?.user || null
 
       if (authUser) {
         let profileData: ProfileRecord | null = null
-        const { data: byId } = await sb
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle()
-
-        if (byId) {
-          profileData = byId as ProfileRecord
-        } else if (authUser.email) {
+        if (authUser.email) {
           const { data: byEmail } = await sb
             .from('profiles')
             .select('*')
@@ -444,19 +450,52 @@ export function useArsipApp() {
             profileData = byEmail as ProfileRecord
           }
         }
+        if (!profileData) {
+          const { data: byId } = await sb
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .maybeSingle()
+          if (byId) {
+            profileData = byId as ProfileRecord
+          }
+        }
+
+        // Guard against an old DB trigger auto-inserting unregistered OAuth users into public.profiles
+        if (profileData && profileData.id === authUser.id && normalizeRole(profileData.role) !== 'superadmin') {
+          const profileTs = new Date(profileData.created_at).getTime()
+          const authTs = new Date(authUser.created_at).getTime()
+          if (Number.isFinite(profileTs) && Number.isFinite(authTs) && Math.abs(profileTs - authTs) < 30000) {
+            const [credCheck, auditCheck] = await Promise.all([
+              sb.from('roles').select('id').eq('name', `user_cred:${profileData.id}`).maybeSingle(),
+              sb.from('activity_logs').select('id').eq('subject_type', 'User').eq('subject_id', profileData.id).limit(1).maybeSingle()
+            ])
+            if (!credCheck.data && !auditCheck.data) {
+              await sb.from('profiles').delete().eq('id', profileData.id)
+              profileData = null
+            }
+          }
+        }
 
         if (profileData) {
-          currentUser.value = {
+          const normalizedUser: ProfileRecord = {
             ...profileData,
             role: normalizeRole(profileData.role)
           }
+          currentUser.value = normalizedUser
           oauthError.value = ''
-          localStorage.removeItem(PENDING_USER_STORAGE_KEY)
+          localStorage.setItem(PENDING_USER_STORAGE_KEY, JSON.stringify(normalizedUser))
+          if (typeof window !== 'undefined' && window.location.hash.includes('access_token=')) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
         } else {
           await sb.auth.signOut()
           currentUser.value = null
           localStorage.removeItem(PENDING_USER_STORAGE_KEY)
-          oauthError.value = `Akun Google (${authUser.email || 'ini'}) belum terdaftar di sistem. Silakan hubungi Super Admin untuk mendaftarkan email Anda.`
+          oauthError.value = `Akses ditolak: Akun Google (${authUser.email || 'ini'}) belum didaftarkan oleh Administator.`
+          if (typeof window !== 'undefined' && window.location.hash.includes('access_token=')) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
         }
       } else {
         const savedPending = localStorage.getItem(PENDING_USER_STORAGE_KEY)
@@ -594,55 +633,55 @@ export function useArsipApp() {
     userCredMap.value = { ...userCredMap.value, [userId]: encoded }
   }
 
+  async function isEmailRegistered(email: string): Promise<ProfileRecord | null> {
+    const sb = requireSupabase()
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail) return null
+    const { data, error } = await sb
+      .from('profiles')
+      .select('*')
+      .ilike('email', cleanEmail)
+      .maybeSingle()
+    if (error || !data) return null
+    return data as ProfileRecord
+  }
+
   async function login(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
     return withActionLoading('Memverifikasi akun...', async () => {
       const sb = requireSupabase()
-      await init()
       const cleanEmail = email.trim().toLowerCase()
+      const registeredProfile = await isEmailRegistered(cleanEmail)
+      if (!registeredProfile) {
+        return {
+          ok: false,
+          error: `Akses ditolak: Email (${cleanEmail}) belum didaftarkan oleh Super Admin.`
+        }
+      }
+
       const { data, error } = await sb.auth.signInWithPassword({ email: cleanEmail, password })
       if (!error && data.user) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem(PENDING_USER_STORAGE_KEY)
         }
-        const { data: existingProfile } = await sb
-          .from('profiles')
-          .select('*')
-          .ilike('email', cleanEmail)
-          .maybeSingle()
-
-        if (!existingProfile) {
-          await sb.from('profiles').insert({
-            id: data.user.id,
-            name: data.user.user_metadata?.name || cleanEmail.split('@')[0] || 'User',
-            email: cleanEmail,
-            role: normalizeRole(data.user.user_metadata?.role || 'viewer')
-          })
+        await saveUserCredential(registeredProfile.id, password)
+        const normalizedProfile: ProfileRecord = {
+          ...registeredProfile,
+          role: normalizeRole(registeredProfile.role)
         }
-        await saveUserCredential(existingProfile?.id || data.user.id, password)
+        currentUser.value = normalizedProfile
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(PENDING_USER_STORAGE_KEY, JSON.stringify(normalizedProfile))
+        }
         await init(true)
         return { ok: true }
       }
 
-      // Fallback when Supabase email confirmation blocks signInWithPassword or user was created via Profiles table
-      const { data: profileData, error: profileErr } = await sb
-        .from('profiles')
-        .select('*')
-        .ilike('email', cleanEmail)
-        .maybeSingle()
-
-      if (profileErr || !profileData) {
-        return {
-          ok: false,
-          error: 'Email belum terdaftar. Silakan hubungi Super Admin untuk pembuatan akun.'
-        }
-      }
-
-      let storedCred = userCredMap.value[profileData.id]
+      let storedCred = userCredMap.value[registeredProfile.id]
       if (!storedCred) {
         const { data: credRow } = await sb
           .from('roles')
           .select('permissions')
-          .eq('name', `user_cred:${profileData.id}`)
+          .eq('name', `user_cred:${registeredProfile.id}`)
           .maybeSingle()
         if (credRow && Array.isArray(credRow.permissions) && typeof credRow.permissions[0] === 'string') {
           storedCred = credRow.permissions[0]
@@ -653,13 +692,13 @@ export function useArsipApp() {
         return { ok: false, error: 'Email atau password yang Anda masukkan salah.' }
       }
       if (!storedCred) {
-        await saveUserCredential(profileData.id, password)
+        await saveUserCredential(registeredProfile.id, password)
       }
 
       await sb.auth.signOut()
       const normalizedProfile: ProfileRecord = {
-        ...(profileData as ProfileRecord),
-        role: normalizeRole((profileData as ProfileRecord).role)
+        ...registeredProfile,
+        role: normalizeRole(registeredProfile.role)
       }
       currentUser.value = normalizedProfile
       if (typeof window !== 'undefined') {
@@ -674,19 +713,33 @@ export function useArsipApp() {
     })
   }
 
-  async function loginWithGoogle(): Promise<{ ok: boolean; error?: string }> {
+  async function loginWithGoogle(emailHint?: string): Promise<{ ok: boolean; error?: string }> {
     return withActionLoading('Menghubungkan ke Google...', async () => {
       const sb = requireSupabase()
       oauthError.value = ''
+      const cleanEmail = (emailHint || '').trim().toLowerCase()
+      const queryParams: Record<string, string> = {
+        prompt: 'select_account'
+      }
+
+      if (cleanEmail) {
+        const registeredProfile = await isEmailRegistered(cleanEmail)
+        if (!registeredProfile) {
+          return {
+            ok: false,
+            error: `Akses ditolak: Email Google (${cleanEmail}) belum didaftarkan oleh Super Admin.`
+          }
+        }
+        queryParams.login_hint = cleanEmail
+      }
+
       const redirectTo =
         typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined
       const { error } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
-          queryParams: {
-            prompt: 'select_account'
-          }
+          queryParams
         }
       })
       if (error) {
@@ -1742,6 +1795,7 @@ export function useArsipApp() {
     canAccessPath,
     loadPublicSettings,
     init,
+    isEmailRegistered,
     login,
     loginWithGoogle,
     registerDemoOrSupabase,
