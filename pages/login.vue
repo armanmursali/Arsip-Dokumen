@@ -133,8 +133,8 @@
             </p>
           </div>
 
-          <div v-if="errorMsg" class="rounded-lg bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700">
-            {{ errorMsg }}
+          <div v-if="errorMsg || oauthError" class="rounded-lg bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700">
+            {{ errorMsg || oauthError }}
           </div>
 
           <form @submit.prevent="handleSubmit" class="space-y-4">
@@ -169,6 +169,27 @@
             </button>
           </form>
 
+          <div class="relative flex items-center py-1">
+            <div class="flex-grow border-t border-slate-200"></div>
+            <span class="mx-3 shrink-0 text-xs font-medium text-slate-400">atau masuk dengan</span>
+            <div class="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <button
+            type="button"
+            :disabled="submitting"
+            @click="handleGoogleLogin"
+            class="w-full inline-flex items-center justify-center gap-2.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+          >
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M23.745 12.27c0-.79-.07-1.54-.19-2.27h-11.3v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+              <path fill="#34A853" d="M12.255 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515 21.3 7.565 24 12.255 24z" />
+              <path fill="#FBBC05" d="M5.525 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62h-3.98a11.86 11.86 0 0 0 0 10.76l3.98-3.09z" />
+              <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0 7.565 0 3.515 2.7 1.545 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" />
+            </svg>
+            <span>Masuk dengan Google</span>
+          </button>
+
           <p class="text-xs text-slate-500 text-center border-t border-slate-100 pt-4">
             Belum memiliki akses? Hubungi Super Admin instansi untuk pembuatan akun baru.
           </p>
@@ -185,7 +206,7 @@
 <script setup lang="ts">
 const router = useRouter()
 const app = useArsipApp()
-const { currentUser, settings, companyLogoUrl } = app
+const { currentUser, settings, companyLogoUrl, oauthError } = app
 
 const email = ref('')
 const password = ref('')
@@ -229,6 +250,22 @@ async function handleSubmit() {
     }
     errorMsg.value = err?.message || 'Terjadi kesalahan saat memproses autentikasi.'
   } finally {
+    submitting.value = false
+  }
+}
+
+async function handleGoogleLogin() {
+  errorMsg.value = ''
+  oauthError.value = ''
+  submitting.value = true
+  try {
+    const res = await app.loginWithGoogle()
+    if (!res.ok) {
+      errorMsg.value = res.error || 'Gagal menghubungkan ke Google.'
+      submitting.value = false
+    }
+  } catch (err: any) {
+    errorMsg.value = err?.message || 'Terjadi kesalahan saat memulai login Google.'
     submitting.value = false
   }
 }

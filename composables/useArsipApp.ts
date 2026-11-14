@@ -273,6 +273,7 @@ export function useArsipApp() {
 
   const initialized = useState<boolean>('arsip_initialized', () => false)
   const loading = useState<boolean>('arsip_loading', () => false)
+  const oauthError = useState<string>('arsip_oauth_error', () => '')
   const currentUser = useState<ProfileRecord | null>('arsip_current_user', () => null)
   const roles = useState<RoleRecord[]>('arsip_roles', () => [])
   const userAclMap = useState<Record<string, string[]>>('arsip_user_acl', () => ({}))
@@ -424,26 +425,39 @@ export function useArsipApp() {
       const authUser = sessionData.session?.user || null
 
       if (authUser) {
-        const { data: profileData } = await sb
+        let profileData: ProfileRecord | null = null
+        const { data: byId } = await sb
           .from('profiles')
           .select('*')
           .eq('id', authUser.id)
           .maybeSingle()
 
-        currentUser.value = profileData
-          ? {
-              ...(profileData as ProfileRecord),
-              role: normalizeRole((profileData as ProfileRecord).role)
-            }
-          : {
-              id: authUser.id,
-              name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
-              email: authUser.email || '',
-              role: normalizeRole(authUser.user_metadata?.role || 'viewer'),
-              created_at: authUser.created_at,
-              updated_at: authUser.created_at
-            }
-        localStorage.removeItem(PENDING_USER_STORAGE_KEY)
+        if (byId) {
+          profileData = byId as ProfileRecord
+        } else if (authUser.email) {
+          const { data: byEmail } = await sb
+            .from('profiles')
+            .select('*')
+            .ilike('email', authUser.email.trim())
+            .maybeSingle()
+          if (byEmail) {
+            profileData = byEmail as ProfileRecord
+          }
+        }
+
+        if (profileData) {
+          currentUser.value = {
+            ...profileData,
+            role: normalizeRole(profileData.role)
+          }
+          oauthError.value = ''
+          localStorage.removeItem(PENDING_USER_STORAGE_KEY)
+        } else {
+          await sb.auth.signOut()
+          currentUser.value = null
+          localStorage.removeItem(PENDING_USER_STORAGE_KEY)
+          oauthError.value = `Akun Google (${authUser.email || 'ini'}) belum terdaftar di sistem. Silakan hubungi Super Admin untuk mendaftarkan email Anda.`
+        }
       } else {
         const savedPending = localStorage.getItem(PENDING_USER_STORAGE_KEY)
         if (savedPending) {
@@ -655,6 +669,31 @@ export function useArsipApp() {
       currentUser.value = normalizedProfile
       if (typeof window !== 'undefined') {
         localStorage.setItem(PENDING_USER_STORAGE_KEY, JSON.stringify(normalizedProfile))
+      }
+      return { ok: true }
+    })
+  }
+
+  async function loginWithGoogle(): Promise<{ ok: boolean; error?: string }> {
+    return withActionLoading('Menghubungkan ke Google...', async () => {
+      const sb = requireSupabase()
+      oauthError.value = ''
+      const redirectTo =
+        typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            prompt: 'select_account'
+          }
+        }
+      })
+      if (error) {
+        return {
+          ok: false,
+          error: error.message || 'Gagal memulai autentikasi dengan Google.'
+        }
       }
       return { ok: true }
     })
@@ -1655,6 +1694,7 @@ export function useArsipApp() {
   return {
     isSupabase,
     loading,
+    oauthError,
     initialized,
     currentUser,
     roles,
@@ -1703,6 +1743,7 @@ export function useArsipApp() {
     loadPublicSettings,
     init,
     login,
+    loginWithGoogle,
     registerDemoOrSupabase,
     logout,
     updateProfile,

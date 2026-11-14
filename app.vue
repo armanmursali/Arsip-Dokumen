@@ -2,7 +2,7 @@
 const app = useArsipApp()
 const { settings, companyLogoUrl } = app
 
-await useAsyncData('arsip-public-settings', () => app.loadPublicSettings())
+const faviconHref = computed(() => (settings.value.logo ? companyLogoUrl.value : '/favicon.ico'))
 
 useHead(() => ({
   title: settings.value.name ? `Digital Arsip — ${settings.value.name}` : 'Digital Arsip',
@@ -10,23 +10,24 @@ useHead(() => ({
     {
       key: 'favicon',
       rel: 'icon',
-      href: companyLogoUrl.value
+      href: faviconHref.value
     },
     {
       key: 'shortcut-icon',
       rel: 'shortcut icon',
-      href: companyLogoUrl.value
+      href: faviconHref.value
     },
     {
       key: 'apple-touch-icon',
       rel: 'apple-touch-icon',
-      href: companyLogoUrl.value
+      href: faviconHref.value
     }
   ]
 }))
 
-onMounted(() => {
-  app.init()
+onMounted(async () => {
+  await app.loadPublicSettings()
+  await app.init()
 })
 </script>
 

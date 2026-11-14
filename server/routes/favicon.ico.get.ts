@@ -15,7 +15,8 @@ export default defineEventHandler(async (event) => {
         headers: {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`
-        }
+        },
+        signal: AbortSignal.timeout(3000)
       })
       if (res.ok) {
         const rows = (await res.json()) as Array<{ logo?: string | null }>
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
             }
           }
           if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
-            const imgRes = await fetch(logoUrl)
+            const imgRes = await fetch(logoUrl, { signal: AbortSignal.timeout(3000) })
             if (imgRes.ok) {
               const contentType = imgRes.headers.get('content-type') || 'image/png'
               const buf = Buffer.from(await imgRes.arrayBuffer())
